@@ -64,10 +64,19 @@ apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager 
 if ! k3s --version &> /dev/null; then
     log "Installing k3s without traefik..."
     curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - &>> $log_file || { log "Failed to install k3s."; exit 1; }
+    # directory creation
+    [[ -d /home/$user/.kube ]] || mkdir /home/$user/.kube
     [[ -d ~/.kube ]] || mkdir ~/.kube
+    # copy k3s
+    sudo cp /etc/rancher/k3s/k3s.yaml /home/$user/.kube/config
     sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+    # change owner
+    sudo chmod 0644 /home/$user/.kube/config
     sudo chmod 0644 ~/.kube/config
+    # user
     sudo chown -R $user /home/$user/.kube/config
+    auso chown -R root ~/.kube/config
+    # sleep
     sleep 10
 else
     log "k3s is already installed."
