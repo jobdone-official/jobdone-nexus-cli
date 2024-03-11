@@ -139,7 +139,7 @@ if [ ! -f /usr/local/bin/rmmagent ]; then
     log "Installing TacticalRMM agent..."
     wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh &>> $log_file || { log "Failed to download TacticalRMM script."; exit 1; }
     sudo chmod +x rmmagent-linux.sh
-    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server
+    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server &>> $log_file || { log "Failed to install TacticalRMM agent."; exit 1; }
 else
     log "TacticalRMM agent is already installed."
 fi
