@@ -105,10 +105,23 @@ else
     log "ArgoCD is already installed."
 fi
 
+# eget
+if ! eget --version &> /dev/null; then
+    log "Installing eget..."
+    download_url=$(curl https://api.github.com/repos/zyedidia/eget/releases/latest -s | grep linux_amd64 | grep browser_download_url | cut -d '"' -f4)
+    curl -SsL ${download_url} -o /tmp/eget.tar.gz &>> $log_file || { log "Failed to download eget."; exit 1; }
+    tar -xf /tmp/eget.tar.gz --strip-components=1 -C /tmp/ &>> $log_file || { log "Failed to extract eget."; exit 1; }
+    sudo mv /tmp/eget /usr/local/bin/eget &>> $log_file || { log "Failed to move eget to /usr/local/bin."; exit 1; }
+    sudo chmod +x /usr/local/bin/eget &>> $log_file || { log "Failed to make eget executable."; exit 1; }
+else
+    log "eget is already installed."
+fi
+
 # k9s
 if ! k9s version &> /dev/null; then
-    log "Installing k9s..."
-    curl -sS https://webinstall.dev/k9s | bash &>> $log_file || { log "Failed to install k9s."; exit 1; }
+    log "Installing k9s to /usr/local/bin"
+    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s || { log "Failed to install k9s."; exit 1; }
+    sudo /usr/local/bin/eget -q --upgrade-only --to "$OR_DIR" derailed/k9s --asset=tar.gz --asset=^sbom || { log "Failed to upgrade k9s."; exit 1; }
 else
     log "k9s is already installed."
 fi
