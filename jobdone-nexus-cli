@@ -120,8 +120,7 @@ fi
 # k9s
 if ! k9s version &> /dev/null; then
     log "Installing k9s to /usr/local/bin"
-    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s || { log "Failed to install k9s."; exit 1; }
-    sudo /usr/local/bin/eget -q --upgrade-only --to "$OR_DIR" derailed/k9s --asset=tar.gz --asset=^sbom || { log "Failed to upgrade k9s."; exit 1; }
+    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s --asset=tar.gz --asset=^sbom || { log "Failed to install k9s."; exit 1; }
 else
     log "k9s is already installed."
 fi
