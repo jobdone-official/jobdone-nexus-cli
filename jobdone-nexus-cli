@@ -58,7 +58,7 @@ log() {
 
 # install basic pacakges as root
 apt update &>> $log_file || { log "Failed to update apt."; exit 1; }
-apt install -y curl sudo vim htop git net-tools wget ncdu network-manager &>> $log_file || { log "Failed to install basic packages."; exit 1; }
+apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager &>> $log_file || { log "Failed to install basic packages."; exit 1; }
 
 # k3s
 if ! k3s --version &> /dev/null; then
