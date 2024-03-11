@@ -75,7 +75,7 @@ if ! k3s --version &> /dev/null; then
     sudo chmod 0644 ~/.kube/config
     # user
     sudo chown -R $user /home/$user/.kube/config
-    auso chown -R root ~/.kube/config
+    sudo chown -R root ~/.kube/config
     # sleep
     sleep 10
 else
