@@ -5,6 +5,7 @@
 For the very first time, execute the script with the root user, to install all prerequisites.
 
 ```bash
+apt clean && apt autoclean && apt update && apt upgrade -y
 apt install curl
 curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/jobdone-official/jobdone-nexus-cli/main/jobdone-nexus-cli
 chmod +x /usr/local/bin/jobdone-nexus-cli

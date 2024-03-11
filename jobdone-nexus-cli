@@ -43,7 +43,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$user" ] [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+if [ -z "$user" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
     echo "Usage: $0 install --user <username> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
     exit 1
 fi
