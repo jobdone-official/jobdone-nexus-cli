@@ -94,6 +94,9 @@ fi
 if [ -n "$hostname" ]; then
     log "Setting hostname to $hostname..."
     hostnamectl set-hostname "$hostname" || { log "Failed to set hostname."; exit 1; }
+    # change /etc/hosts
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log "Failed to update /etc/hosts."; exit 1; }
+    log "Hostname set to $hostname."
 fi
 
 # regenerate machine ID
