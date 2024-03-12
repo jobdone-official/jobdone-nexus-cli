@@ -118,8 +118,10 @@ systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit
 log INFO "Machine ID regenerated successfully."
 
 # install basic pacakges as root
+log INFO "Installing basic packages..."
 apt update || { log ERROR "Failed to update apt."; exit 1; }
 apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
+log INFO "Basic packages installed successfully."
 
 # add ssh public key
 if [ -n "$ssh_public_key" ]; then
