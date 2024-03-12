@@ -181,14 +181,25 @@ fi
 log "JobDone Nexus Installation complete!"
 
 # if network configuration is provided, apply it
-
 if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" ]; then
     log "Setting up network configuration..."
+    
+    # List all available network interfaces and prompt user to select one
+    log "Identifying available network interfaces..."
+    nmcli device status
+    read -p "Enter the interface name to configure: " INTERFACE_NAME
 
-    # Backup current network configuration
-    CONNECTION_NAME=$(nmcli -t -f UUID,TYPE con show --active | grep ethernet | cut -d':' -f1)
-    BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}.nmconnection"
+    CONNECTION_NAME=$(nmcli -t -f UUID,TYPE,DEVICE con show --active | grep "$INTERFACE_NAME" | cut -d':' -f1)
+
+    if [ -z "$CONNECTION_NAME" ]; then
+        log "Selected interface is not active or does not exist."
+        exit 1
+    fi
+
+    TIMESTAMP=$(date +%Y-%m-%dT%H:%M:%S)
+    BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
     nmcli con export "$CONNECTION_NAME" > "$BACKUP_CONFIG"
+    log "Current configuration for $INTERFACE_NAME backed up to $BACKUP_CONFIG"
 
     # Set static IP
     nmcli con mod "$CONNECTION_NAME" ipv4.addresses "$static_ip/$netmask" ipv4.gateway "$gateway" ipv4.dns "$dns" ipv4.method manual
@@ -200,9 +211,18 @@ if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" 
     ping -c 4 8.8.8.8 > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         log "Internet connection is up. Static IP set successfully."
+        NEW_CONFIG="/tmp/network_config_new_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
+        nmcli con export "$CONNECTION_NAME" > "$NEW_CONFIG"
+        log "New configuration applied. Review changes below:"
+        diff "$BACKUP_CONFIG" "$NEW_CONFIG" || log "No changes were detected."
     else
-        log "Internet connection failed. Reverting to original configuration..."
-        nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
-        log "Original configuration restored."
+        log "Internet connection failed."
+        read -p "Restore original configuration? (yes/no): " RESTORE_CHOICE
+        if [[ "$RESTORE_CHOICE" == "yes" ]]; then
+            nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
+            log "Original configuration restored."
+        else
+            log "Keeping new configuration as per user request."
+        fi
     fi
 fi
