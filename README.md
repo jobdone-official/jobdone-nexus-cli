@@ -40,6 +40,11 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --hostname "<hostname>" \
     --ssh-public-key "<SSH-Public-Key>" \
     --zerotier-id "<zerotier-id>" \
+    --argocd-git-repo-url "argocd-git-repo-url" \
+    --argocd-git-token "argocd-git-token" \
+    --argocd-git-directory "argocd-git-directory" \
+    --argocd-project "argocd-project" \
+    --argocd-app-url "argocd-app-url" \
     --trmm-mesh-agent "<trmm-mesh-agent>" \
     --trmm-api-url "<trmm-api-url>" \
     --trmm-client-id <trmm-client-id> \
@@ -55,6 +60,11 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --hostname "<hostname>" \
     --ssh-public-key "<SSH-Public-Key>" \
     --zerotier-id "<zerotier-id>" \
+    --argocd-git-repo-url "argocd-git-repo-url" \
+    --argocd-git-token "argocd-git-token" \
+    --argocd-git-directory "argocd-git-directory" \
+    --argocd-project "argocd-project" \
+    --argocd-app-url "argocd-app-url" \
     --trmm-mesh-agent "<trmm-mesh-agent>" \
     --trmm-api-url "<trmm-api-url>" \
     --trmm-client-id <trmm-client-id> \
@@ -76,6 +86,11 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --hostname "nexus-server-1" \
     --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
     --zerotier-id "e5cd7a82840b9b7e" \
+    --argocd-git-repo-url "https://git.example.com/repo.git" \
+    --argocd-git-token "token123" \
+    --argocd-git-directory "directory-name" \
+    --argocd-project "project-name" \
+    --argocd-app-url "https://git.example.com/app.git" \
     --trmm-mesh-agent "meshagent.example.com" \
     --trmm-api-url "https://api.trmm.example.com" \
     --trmm-client-id 1 \
@@ -91,6 +106,11 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --hostname "nexus-server-1" \
     --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
     --zerotier-id "e5cd7a82840b9b7e" \
+    --argocd-git-repo-url "https://git.example.com/repo.git" \
+    --argocd-git-token "token123" \
+    --argocd-git-directory "directory-name" \
+    --argocd-project "project-name" \
+    --argocd-app-url "https://git.example.com/app.git" \
     --trmm-mesh-agent "meshagent.example.com" \
     --trmm-api-url "https://api.trmm.example.com" \
     --trmm-client-id 1 \
