@@ -5,13 +5,26 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
+    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key> [--static-ip <static-ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
 
+cat << "EOF"
+
+       _       _     _____                     _   _                        _____ _      _____ 
+      | |     | |   |  __ \                   | \ | |                      / ____| |    |_   _|
+      | | ___ | |__ | |  | | ___  _ __   ___  |  \| | _____  ___   _ ___  | |    | |      | |  
+  _   | |/ _ \| '_ \| |  | |/ _ \| '_ \ / _ \ | . ` |/ _ \ \/ / | | / __| | |    | |      | |  
+ | |__| | (_) | |_) | |__| | (_) | | | |  __/ | |\  |  __/>  <| |_| \__ \ | |____| |____ _| |_ 
+  \____/ \___/|_.__/|_____/ \___/|_| |_|\___| |_| \_|\___/_/\_\\__,_|___/  \_____|______|_____|
+
+
+EOF
+
 # Initialize variables
 user=""
+hostname=""
 zerotier_id=""
 trmm_mesh_agent=""
 trmm_api_url=""
@@ -27,6 +40,7 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --user) user="$2"; shift ;;
+        --hostname) hostname="$2"; shift ;;
         --zerotier-id) zerotier_id="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
@@ -43,8 +57,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$user" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --user <username> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
+if [ -z "$user" ] || [ -z "$hostname" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
     exit 1
 fi
 
@@ -58,6 +72,7 @@ log() {
 
 # log params
 log "user: $user"
+log "hostname: $hostname"
 log "zerotier_id: $zerotier_id"
 log "trmm_mesh_agent: $trmm_mesh_agent"
 log "trmm_api_url: $trmm_api_url"
@@ -74,6 +89,18 @@ if [ "$EUID" -ne 0 ]; then
     log "Please run as root."
     exit 1
 fi
+
+# set the hostname if it's provided
+if [ -n "$hostname" ]; then
+    log "Setting hostname to $hostname..."
+    hostnamectl set-hostname "$hostname" || { log "Failed to set hostname."; exit 1; }
+fi
+
+# regenerate machine ID
+log "Regenerating machine ID..."
+rm -f /etc/machine-id
+systemd-machine-id-setup || { log "Failed to regenerate machine ID."; exit 1; }
+log "Machine ID regenerated successfully."
 
 # install basic pacakges as root
 apt update || { log "Failed to update apt."; exit 1; }
@@ -225,4 +252,13 @@ if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" 
             log "Keeping new configuration as per user request."
         fi
     fi
+fi
+
+# ask for reboot
+read -p "Reboot now? (yes/no): " REBOOT_CHOICE
+if [[ "$REBOOT_CHOICE" == "yes" ]]; then
+    log "Rebooting..."
+    reboot
+else
+    log "Reboot skipped."
 fi
