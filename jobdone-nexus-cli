@@ -69,9 +69,24 @@ log "gateway: $gateway"
 log "netmask: $netmask"
 log "dns: $dns"
 
+# check if this script is running as root
+if [ "$EUID" -ne 0 ]; then
+    log "Please run as root."
+    exit 1
+fi
+
 # install basic pacakges as root
 apt update || { log "Failed to update apt."; exit 1; }
 apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log "Failed to install basic packages."; exit 1; }
+
+# add user to sudo group
+if ! getent group sudo | grep -q "\b$user\b"; then
+    log "Adding $user to sudo group..."
+    usermod -aG sudo $user || { log "Failed to add $user to sudo group."; exit 1; }
+    log "$user added to sudo group."
+else
+    log "$user is already in sudo group."
+fi
 
 # k3s
 if ! k3s --version &> /dev/null; then
