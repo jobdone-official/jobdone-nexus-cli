@@ -5,13 +5,26 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
+    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key> [--static-ip <static-ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
 
+cat << "EOF"
+
+       _       _     _____                     _   _                        _____ _      _____ 
+      | |     | |   |  __ \                   | \ | |                      / ____| |    |_   _|
+      | | ___ | |__ | |  | | ___  _ __   ___  |  \| | _____  ___   _ ___  | |    | |      | |  
+  _   | |/ _ \| '_ \| |  | |/ _ \| '_ \ / _ \ | . ` |/ _ \ \/ / | | / __| | |    | |      | |  
+ | |__| | (_) | |_) | |__| | (_) | | | |  __/ | |\  |  __/>  <| |_| \__ \ | |____| |____ _| |_ 
+  \____/ \___/|_.__/|_____/ \___/|_| |_|\___| |_| \_|\___/_/\_\\__,_|___/  \_____|______|_____|
+
+
+EOF
+
 # Initialize variables
 user=""
+hostname=""
 zerotier_id=""
 trmm_mesh_agent=""
 trmm_api_url=""
@@ -27,6 +40,7 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --user) user="$2"; shift ;;
+        --hostname) hostname="$2"; shift ;;
         --zerotier-id) zerotier_id="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
@@ -43,8 +57,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$user" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --user <username> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
+if [ -z "$user" ] || [ -z "$hostname" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
     exit 1
 fi
 
@@ -58,6 +72,7 @@ log() {
 
 # log params
 log "user: $user"
+log "hostname: $hostname"
 log "zerotier_id: $zerotier_id"
 log "trmm_mesh_agent: $trmm_mesh_agent"
 log "trmm_api_url: $trmm_api_url"
@@ -69,9 +84,36 @@ log "gateway: $gateway"
 log "netmask: $netmask"
 log "dns: $dns"
 
+# check if this script is running as root
+if [ "$EUID" -ne 0 ]; then
+    log "Please run as root."
+    exit 1
+fi
+
+# set the hostname if it's provided
+if [ -n "$hostname" ]; then
+    log "Setting hostname to $hostname..."
+    hostnamectl set-hostname "$hostname" || { log "Failed to set hostname."; exit 1; }
+fi
+
+# regenerate machine ID
+log "Regenerating machine ID..."
+rm -f /etc/machine-id
+systemd-machine-id-setup || { log "Failed to regenerate machine ID."; exit 1; }
+log "Machine ID regenerated successfully."
+
 # install basic pacakges as root
 apt update || { log "Failed to update apt."; exit 1; }
 apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log "Failed to install basic packages."; exit 1; }
+
+# add user to sudo group
+if ! getent group sudo | grep -q "\b$user\b"; then
+    log "Adding $user to sudo group..."
+    usermod -aG sudo $user || { log "Failed to add $user to sudo group."; exit 1; }
+    log "$user added to sudo group."
+else
+    log "$user is already in sudo group."
+fi
 
 # k3s
 if ! k3s --version &> /dev/null; then
@@ -166,14 +208,25 @@ fi
 log "JobDone Nexus Installation complete!"
 
 # if network configuration is provided, apply it
-
 if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" ]; then
     log "Setting up network configuration..."
+    
+    # List all available network interfaces and prompt user to select one
+    log "Identifying available network interfaces..."
+    nmcli device status
+    read -p "Enter the interface name to configure: " INTERFACE_NAME
 
-    # Backup current network configuration
-    CONNECTION_NAME=$(nmcli -t -f UUID,TYPE con show --active | grep ethernet | cut -d':' -f1)
-    BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}.nmconnection"
+    CONNECTION_NAME=$(nmcli -t -f UUID,TYPE,DEVICE con show --active | grep "$INTERFACE_NAME" | cut -d':' -f1)
+
+    if [ -z "$CONNECTION_NAME" ]; then
+        log "Selected interface is not active or does not exist."
+        exit 1
+    fi
+
+    TIMESTAMP=$(date +%Y-%m-%dT%H:%M:%S)
+    BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
     nmcli con export "$CONNECTION_NAME" > "$BACKUP_CONFIG"
+    log "Current configuration for $INTERFACE_NAME backed up to $BACKUP_CONFIG"
 
     # Set static IP
     nmcli con mod "$CONNECTION_NAME" ipv4.addresses "$static_ip/$netmask" ipv4.gateway "$gateway" ipv4.dns "$dns" ipv4.method manual
@@ -185,9 +238,27 @@ if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" 
     ping -c 4 8.8.8.8 > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         log "Internet connection is up. Static IP set successfully."
+        NEW_CONFIG="/tmp/network_config_new_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
+        nmcli con export "$CONNECTION_NAME" > "$NEW_CONFIG"
+        log "New configuration applied. Review changes below:"
+        diff "$BACKUP_CONFIG" "$NEW_CONFIG" || log "No changes were detected."
     else
-        log "Internet connection failed. Reverting to original configuration..."
-        nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
-        log "Original configuration restored."
+        log "Internet connection failed."
+        read -p "Restore original configuration? (yes/no): " RESTORE_CHOICE
+        if [[ "$RESTORE_CHOICE" == "yes" ]]; then
+            nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
+            log "Original configuration restored."
+        else
+            log "Keeping new configuration as per user request."
+        fi
     fi
+fi
+
+# ask for reboot
+read -p "Reboot now? (yes/no): " REBOOT_CHOICE
+if [[ "$REBOOT_CHOICE" == "yes" ]]; then
+    log "Rebooting..."
+    reboot
+else
+    log "Reboot skipped."
 fi
