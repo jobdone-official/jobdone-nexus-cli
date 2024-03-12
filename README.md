@@ -38,7 +38,8 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
   jobdone-nexus-cli install \
     --user "<user>" \
     --hostname "<hostname>" \
-    --zerotier-id <zerotier-id> \
+    --ssh-public-key "<SSH-Public-Key>" \
+    --zerotier-id "<zerotier-id>" \
     --trmm-mesh-agent "<trmm-mesh-agent>" \
     --trmm-api-url "<trmm-api-url>" \
     --trmm-client-id <trmm-client-id> \
@@ -52,7 +53,8 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
   jobdone-nexus-cli install \
     --user "<user>" \
     --hostname "<hostname>" \
-    --zerotier-id <zerotier-id> \
+    --ssh-public-key "<SSH-Public-Key>" \
+    --zerotier-id "<zerotier-id>" \
     --trmm-mesh-agent "<trmm-mesh-agent>" \
     --trmm-api-url "<trmm-api-url>" \
     --trmm-client-id <trmm-client-id> \
@@ -62,4 +64,40 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --gateway <gateway> \
     --netmask <netmask> \
     --dns <dns>
+  ```
+
+#### Examples
+
+- **Without network (optional):**
+
+  ```bash
+  jobdone-nexus-cli install \
+    --user "user-1" \
+    --hostname "nexus-server-1" \
+    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
+    --zerotier-id "e5cd7a82840b9b7e" \
+    --trmm-mesh-agent "meshagent.example.com" \
+    --trmm-api-url "https://api.trmm.example.com" \
+    --trmm-client-id 1 \
+    --trmm-site-id 1 \
+    --trmm-auth-key "authkey789"
+  ```
+
+- **With network:**
+
+  ```bash
+  jobdone-nexus-cli install \
+    --user "user-1" \
+    --hostname "nexus-server-1" \
+    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
+    --zerotier-id "e5cd7a82840b9b7e" \
+    --trmm-mesh-agent "meshagent.example.com" \
+    --trmm-api-url "https://api.trmm.example.com" \
+    --trmm-client-id 1 \
+    --trmm-site-id 1 \
+    --trmm-auth-key "authkey789" \
+    --static_ip "192.168.1.100" \
+    --gateway "192.168.1.1" \
+    --netmask "255.255.255.0" \
+    --dns "8.8.8.8"
   ```

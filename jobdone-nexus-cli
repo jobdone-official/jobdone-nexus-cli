@@ -5,7 +5,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key> [--static-ip <static-ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    echo "Usage: $0 install --user <username> --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -25,6 +25,7 @@ EOF
 # Initialize variables
 user=""
 hostname=""
+ssh_public_key=""
 zerotier_id=""
 trmm_mesh_agent=""
 trmm_api_url=""
@@ -41,6 +42,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --user) user="$2"; shift ;;
         --hostname) hostname="$2"; shift ;;
+        --ssh-public-key) ssh_public_key="$2"; shift ;;
         --zerotier-id) zerotier_id="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
@@ -57,8 +59,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$user" ] || [ -z "$hostname" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --user <username> --hostname <hostname> --zerotier-id <ZeroTier-Network-ID> --trmm-mesh-agent <TRMM-Mesh-Agent> --trmm-api-url <TRMM-API-URL> --trmm-client-id <TRMM-Client-ID> --trmm-site-id <TRMM-Site-ID> --trmm-auth-key <TRMM-Auth-Key>"
+if [ -z "$user" ] || [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --user <username> --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 
@@ -73,6 +75,7 @@ log() {
 # log params
 log "user: $user"
 log "hostname: $hostname"
+log "ssh_public_key: $ssh_public_key"
 log "zerotier_id: $zerotier_id"
 log "trmm_mesh_agent: $trmm_mesh_agent"
 log "trmm_api_url: $trmm_api_url"
@@ -108,6 +111,16 @@ log "Machine ID regenerated successfully."
 # install basic pacakges as root
 apt update || { log "Failed to update apt."; exit 1; }
 apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log "Failed to install basic packages."; exit 1; }
+
+# add ssh public key
+if [ -n "$ssh_public_key" ]; then
+    log "Adding SSH public key to root's authorized_keys..."
+    mkdir -p /root/.ssh
+    echo "$ssh_public_key" >> /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    chown root:root /root/.ssh/authorized_keys
+    log "SSH public key added successfully."
+fi
 
 # add user to sudo group
 if ! getent group sudo | grep -q "\b$user\b"; then
