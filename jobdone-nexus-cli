@@ -67,50 +67,59 @@ fi
 # Define log file with timestamp
 log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
 
-# Function to log messages
+# Function to log messages with levels
 log() {
-    echo "$(date +%Y-%m-%dT%H:%M:%S) - $1" | tee -a $log_file
+    local level=$1
+    local message=$2
+    local prefix=""
+    case $level in
+        INFO) prefix="\e[34mℹ️ [INFO]";;  # Blue
+        WARN) prefix="\e[33m⚠️ [WARN]";;  # Yellow
+        ERROR) prefix="\e[31m❌ [ERROR]";; # Red
+        *) prefix="\e[0m📘";;             # Default
+    esac
+    echo -e "$prefix [$$(date +%Y-%m-%dT%H:%M:%S)] - $message\e[0m" | tee -a $log_file
 }
 
 # log params
-log "user: $user"
-log "hostname: $hostname"
-log "ssh_public_key: $ssh_public_key"
-log "zerotier_id: $zerotier_id"
-log "trmm_mesh_agent: $trmm_mesh_agent"
-log "trmm_api_url: $trmm_api_url"
-log "trmm_client_id: $trmm_client_id"
-log "trmm_site_id: $trmm_site_id"
-log "trmm_auth_key: $trmm_auth_key"
-log "static_ip: $static_ip"
-log "gateway: $gateway"
-log "netmask: $netmask"
-log "dns: $dns"
+log INFO "user: $user"
+log INFO "hostname: $hostname"
+log INFO "ssh_public_key: $ssh_public_key"
+log INFO "zerotier_id: $zerotier_id"
+log INFO "trmm_mesh_agent: $trmm_mesh_agent"
+log INFO "trmm_api_url: $trmm_api_url"
+log INFO "trmm_client_id: $trmm_client_id"
+log INFO "trmm_site_id: $trmm_site_id"
+log INFO "trmm_auth_key: $trmm_auth_key"
+log INFO "static_ip: $static_ip"
+log INFO "gateway: $gateway"
+log INFO "netmask: $netmask"
+log INFO "dns: $dns"
 
 # check if this script is running as root
 if [ "$EUID" -ne 0 ]; then
-    log "Please run as root."
+    log ERROR "Please run as root."
     exit 1
 fi
 
 # set the hostname if it's provided
 if [ -n "$hostname" ]; then
-    log "Setting hostname to $hostname..."
-    hostnamectl set-hostname "$hostname" || { log "Failed to set hostname."; exit 1; }
+    log INFO "Setting hostname to $hostname..."
+    hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
     # change /etc/hosts
-    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log "Failed to update /etc/hosts."; exit 1; }
-    log "Hostname set to $hostname."
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
+    log INFO "Hostname set to $hostname."
 fi
 
 # regenerate machine ID
-log "Regenerating machine ID..."
+log INFO "Regenerating machine ID..."
 rm -f /etc/machine-id
-systemd-machine-id-setup || { log "Failed to regenerate machine ID."; exit 1; }
-log "Machine ID regenerated successfully."
+systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
+log INFO "Machine ID regenerated successfully."
 
 # install basic pacakges as root
-apt update || { log "Failed to update apt."; exit 1; }
-apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log "Failed to install basic packages."; exit 1; }
+apt update || { log ERROR "Failed to update apt."; exit 1; }
+apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
 
 # add ssh public key
 if [ -n "$ssh_public_key" ]; then
@@ -124,17 +133,29 @@ fi
 
 # add user to sudo group
 if ! getent group sudo | grep -q "\b$user\b"; then
-    log "Adding $user to sudo group..."
-    usermod -aG sudo $user || { log "Failed to add $user to sudo group."; exit 1; }
-    log "$user added to sudo group."
+    log INFO "Adding $user to sudo group..."
+    usermod -aG sudo $user || { log ERROR "Failed to add $user to sudo group."; exit 1; }
+    log INFO "$user added to sudo group."
 else
-    log "$user is already in sudo group."
+    log WARN "$user is already in sudo group."
 fi
+
+check_k3s_ready() {
+    while true; do
+        if kubectl get nodes &> /dev/null; then
+            log INFO "k3s is ready!"
+            break
+        else
+            log INFO "Waiting for k3s to be ready..."
+            sleep 5
+        fi
+    done
+}
 
 # k3s
 if ! k3s --version &> /dev/null; then
-    log "Installing k3s without traefik..."
-    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - || { log "Failed to install k3s."; exit 1; }
+    log INFO "Installing k3s without traefik..."
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - || { log ERROR "Failed to install k3s."; exit 1; }
     # directory creation
     [[ -d /home/$user/.kube ]] || mkdir /home/$user/.kube
     [[ -d ~/.kube ]] || mkdir ~/.kube
@@ -149,100 +170,88 @@ if ! k3s --version &> /dev/null; then
     sudo chown -R root ~/.kube/config
     # sleep
     sleep 10
-    log "k3s installed successfully."
+    log INFO "k3s installed successfully."
+
+    check_k3s_ready
 else
-    log "k3s is already installed."
+    log WARN "k3s is already installed."
 fi
-
-check_k3s_ready() {
-    while true; do
-        if kubectl get nodes &> /dev/null; then
-            log "k3s is ready!"
-            break
-        else
-            log "Waiting for k3s to be ready..."
-            sleep 5
-        fi
-    done
-}
-
-check_k3s_ready
 
 # argocd
 if ! kubectl get ns argocd &> /dev/null; then
-    log "Installing ArgoCD..."
-    kubectl create namespace argocd || { log "Failed to create ArgoCD namespace."; exit 1; }
-    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml || { log "Failed to install ArgoCD."; exit 1; }
-    log "ArgoCD installed successfully."
+    log INFO "Installing ArgoCD..."
+    kubectl create namespace argocd || { log ERROR "Failed to create ArgoCD namespace."; exit 1; }
+    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml || { log ERROR "Failed to install ArgoCD."; exit 1; }
+    log INFO "ArgoCD installed successfully."
 else
-    log "ArgoCD is already installed."
+    log WARN "ArgoCD is already installed."
 fi
 
 # eget
 if ! eget --version &> /dev/null; then
-    log "Installing eget..."
+    log INFO "Installing eget..."
     download_url=$(curl https://api.github.com/repos/zyedidia/eget/releases/latest -s | grep linux_amd64 | grep browser_download_url | cut -d '"' -f4)
-    curl -SsL ${download_url} -o /tmp/eget.tar.gz || { log "Failed to download eget."; exit 1; }
-    tar -xf /tmp/eget.tar.gz --strip-components=1 -C /tmp/ || { log "Failed to extract eget."; exit 1; }
-    sudo mv /tmp/eget /usr/local/bin/eget || { log "Failed to move eget to /usr/local/bin."; exit 1; }
-    sudo chmod +x /usr/local/bin/eget || { log "Failed to make eget executable."; exit 1; }
-    log "eget installed successfully."
+    curl -SsL ${download_url} -o /tmp/eget.tar.gz || { log ERROR "Failed to download eget."; exit 1; }
+    tar -xf /tmp/eget.tar.gz --strip-components=1 -C /tmp/ || { log ERROR "Failed to extract eget."; exit 1; }
+    sudo mv /tmp/eget /usr/local/bin/eget || { log ERROR "Failed to move eget to /usr/local/bin."; exit 1; }
+    sudo chmod +x /usr/local/bin/eget || { log ERROR "Failed to make eget executable."; exit 1; }
+    log INFO "eget installed successfully."
 else
-    log "eget is already installed."
+    log WARN "eget is already installed."
 fi
 
 # k9s
 if ! k9s version &> /dev/null; then
-    log "Installing k9s to /usr/local/bin"
-    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s --asset=tar.gz --asset=^sbom || { log "Failed to install k9s."; exit 1; }
-    log "k9s installed successfully."
+    log INFO "Installing k9s to /usr/local/bin"
+    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s --asset=tar.gz --asset=^sbom || { log ERROR "Failed to install k9s."; exit 1; }
+    log INFO "k9s installed successfully."
 else
-    log "k9s is already installed."
+    log WARN "k9s is already installed."
 fi
 
 # zerotier
 if ! zerotier-cli info &> /dev/null; then
-    log "Setting up ZeroTier..."
-    curl -s https://install.zerotier.com | sudo bash || { log "Failed to install ZeroTier."; exit 1; }
-    sudo zerotier-cli join $zerotier_id || { log "Failed to join ZeroTier network."; exit 1; }
-    log "ZeroTier setup complete."
+    log INFO "Setting up ZeroTier..."
+    curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
+    sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
+    log INFO "ZeroTier setup complete."
 else
-    log "ZeroTier is already installed."
+    log WARN "ZeroTier is already installed."
 fi
 
 # tacticalrmm agent
 if [ ! -f /usr/local/bin/rmmagent ]; then
-    log "Installing TacticalRMM agent..."
-    wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh || { log "Failed to download TacticalRMM script."; exit 1; }
+    log INFO "Installing TacticalRMM agent..."
+    wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh || { log ERROR "Failed to download TacticalRMM script."; exit 1; }
     sudo chmod +x rmmagent-linux.sh
-    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server || { log "Failed to install TacticalRMM agent."; exit 1; }
-    log "TacticalRMM agent installed successfully, check if the token was accepted."
+    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server || { log ERROR "Failed to install TacticalRMM agent."; exit 1; }
+    log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
 else
-    log "TacticalRMM agent is already installed."
+    log WARN "TacticalRMM agent is already installed."
 fi
 
-log "JobDone Nexus Installation complete!"
+log INFO "JobDone Nexus Installation complete!"
 
 # if network configuration is provided, apply it
 if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" ]; then
-    log "Setting up network configuration..."
+    log INFO "Setting up network configuration..."
     
     # List all available network interfaces and prompt user to select one
-    log "Identifying available network interfaces..."
+    log INFO "Identifying available network interfaces..."
     nmcli device status
     read -p "Enter the interface name to configure: " INTERFACE_NAME
 
     CONNECTION_NAME=$(nmcli -t -f UUID,TYPE,DEVICE con show --active | grep "$INTERFACE_NAME" | cut -d':' -f1)
 
     if [ -z "$CONNECTION_NAME" ]; then
-        log "Selected interface is not active or does not exist."
+        log INFO "Selected interface is not active or does not exist."
         exit 1
     fi
 
     TIMESTAMP=$(date +%Y-%m-%dT%H:%M:%S)
     BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
     nmcli con export "$CONNECTION_NAME" > "$BACKUP_CONFIG"
-    log "Current configuration for $INTERFACE_NAME backed up to $BACKUP_CONFIG"
+    log INFO "Current configuration for $INTERFACE_NAME backed up to $BACKUP_CONFIG"
 
     # Set static IP
     nmcli con mod "$CONNECTION_NAME" ipv4.addresses "$static_ip/$netmask" ipv4.gateway "$gateway" ipv4.dns "$dns" ipv4.method manual
@@ -253,19 +262,19 @@ if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" 
     # Check for internet connectivity
     ping -c 4 8.8.8.8 > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        log "Internet connection is up. Static IP set successfully."
+        log INFO "Internet connection is up. Static IP set successfully."
         NEW_CONFIG="/tmp/network_config_new_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
         nmcli con export "$CONNECTION_NAME" > "$NEW_CONFIG"
-        log "New configuration applied. Review changes below:"
+        log INFO "New configuration applied. Review changes below:"
         diff "$BACKUP_CONFIG" "$NEW_CONFIG" || log "No changes were detected."
     else
-        log "Internet connection failed."
+        log WARN "Internet connection failed."
         read -p "Restore original configuration? (yes/no): " RESTORE_CHOICE
         if [[ "$RESTORE_CHOICE" == "yes" ]]; then
             nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
-            log "Original configuration restored."
+            log WARN "Original configuration restored."
         else
-            log "Keeping new configuration as per user request."
+            log WARN "Keeping new configuration as per user request."
         fi
     fi
 fi
@@ -273,8 +282,8 @@ fi
 # ask for reboot
 read -p "Reboot now? (yes/no): " REBOOT_CHOICE
 if [[ "$REBOOT_CHOICE" == "yes" ]]; then
-    log "Rebooting..."
+    log INFO "Rebooting..."
     reboot
 else
-    log "Reboot skipped."
+    log INFO "Reboot skipped."
 fi
