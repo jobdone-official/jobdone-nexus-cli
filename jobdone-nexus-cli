@@ -86,7 +86,7 @@ log() {
         ERROR) prefix="\e[31m❌ [ERROR]";; # Red
         *) prefix="\e[0m📘";;             # Default
     esac
-    echo -e "$prefix [$$(date +%Y-%m-%dT%H:%M:%S)] - $message\e[0m" | tee -a $log_file
+    echo -e "$prefix [$(date +%Y-%m-%dT%H:%M:%S)] - $message\e[0m" | tee -a $log_file
 }
 
 # log params
