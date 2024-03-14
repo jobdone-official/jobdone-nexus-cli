@@ -5,7 +5,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -31,6 +31,7 @@ argocd_git_token=""
 argocd_git_directory=""
 argocd_project=""
 argocd_app_url=""
+argocd_app_name=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
@@ -52,6 +53,7 @@ while [[ "$#" -gt 0 ]]; do
         --argocd-git-directory) argocd_git_directory="$2"; shift ;;
         --argocd-project) argocd_project="$2"; shift ;;
         --argocd-app-url) argocd_app_url="$2"; shift ;;
+        --argocd-app-name) argocd_app_name="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
@@ -67,8 +69,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+if [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$argocd_app_name" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 
@@ -98,6 +100,7 @@ echo "argocd_git_token: $argocd_git_token"
 echo "argocd_git_directory: $argocd_git_directory"
 echo "argocd_project: $argocd_project"
 echo "argocd_app_url: $argocd_app_url"
+echo "argocd_app_name: $argocd_app_name"
 echo "trmm_mesh_agent: $trmm_mesh_agent"
 echo "trmm_api_url: $trmm_api_url"
 echo "trmm_client_id: $trmm_client_id"
@@ -206,7 +209,10 @@ fi
 
 # argocd application
 ## check if there is already a project with the same name
-if ! kubectl get apps -n argocd | grep -q "\b$argocd_project\b"; then
+
+## continue only if all enviroment variables are set
+
+if [ -n "$argocd_git_repo_url" ] && [ -n "$argocd_git_token" ] && [ -n "$argocd_git_directory" ] && [ -n "$argocd_project" ] && [ -n "$argocd_app_url" ] && [ -n "$argocd_app_name" ]; then
     export GIT_TOKEN=$argocd_git_token
 
     # check if there is a trailing slash in the git repo url, if yes, remove it
@@ -259,9 +265,18 @@ if ! kubectl get apps -n argocd | grep -q "\b$argocd_project\b"; then
         fi
     fi
 
+    # Attempt to create the ArgoCD Autopilot app, capturing both stdout and stderr
+    app_create_output=$(argocd-autopilot app create ${argocd_app_name} --app "$argocd_app_url" -p "$argocd_project" 2>&1)
+
+    if [ $? -eq 0 ]; then
+        log INFO "ArgoCD app $argocd_app_name created successfully."
+    else
+        log ERROR "Failed to create ArgoCD app $argocd_app_name: $app_create_output"
+    fi
+
     log INFO "ArgoCD application installed successfully."
 else
-    log WARN "ArgoCD application already exists."
+    log WARN "Please set the required environment variables to install ArgoCD application."
 fi
 
 # eget
