@@ -225,8 +225,22 @@ if ! kubectl get apps -n argocd | grep -q "\b$argocd_project\b"; then
     log INFO "GIT_TOKEN and GIT_REPO environment variables are set."
 
     log INFO "Bootstrapping the ArgoCD Autopilot repo..."
-    argocd-autopilot repo bootstrap || { log ERROR "Failed to bootstrap the ArgoCD Autopilot repo."; exit 1; }
-    log INFO "ArgoCD Autopilot repo bootstrapped successfully."
+
+    # Attempt to bootstrap the ArgoCD Autopilot repo, capturing both stdout and stderr
+    bootstrap_output=$(argocd-autopilot repo bootstrap 2>&1)
+
+    if [ $? -eq 0 ]; then
+        log INFO "ArgoCD Autopilot repo bootstrapped successfully."
+    else
+        # Check if the error is because the repo already exists
+        if echo "$bootstrap_output" | grep -q "folder bootstrap already exist"; then
+            log INFO "ArgoCD Autopilot repo already bootstrapped. Continuing..."
+        else
+            # Handle other errors
+            log ERROR "Failed to bootstrap the ArgoCD Autopilot repo: $bootstrap_output"
+            exit 1
+        fi
+    fi
 
     log INFO "Creating project $argocd_project..."
     argocd-autopilot project create $argocd_project || { log ERROR "Failed to create project $argocd_project."; exit 1; }
