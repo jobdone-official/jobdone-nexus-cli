@@ -5,7 +5,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --user <username> --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -23,7 +23,6 @@ cat << "EOF"
 EOF
 
 # Initialize variables
-user=""
 hostname=""
 ssh_public_key=""
 zerotier_id=""
@@ -45,7 +44,6 @@ dns=""
 # Parse named arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --user) user="$2"; shift ;;
         --hostname) hostname="$2"; shift ;;
         --ssh-public-key) ssh_public_key="$2"; shift ;;
         --zerotier-id) zerotier_id="$2"; shift ;;
@@ -69,8 +67,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$user" ] || [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --user <username> --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+if [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 
@@ -92,7 +90,6 @@ log() {
 }
 
 # log params
-log INFO "user: $user"
 log INFO "hostname: $hostname"
 log INFO "ssh_public_key: $ssh_public_key"
 log INFO "zerotier_id: $zerotier_id"
@@ -111,50 +108,47 @@ log INFO "gateway: $gateway"
 log INFO "netmask: $netmask"
 log INFO "dns: $dns"
 
-# check if this script is running as root
-if [ "$EUID" -ne 0 ]; then
-    log ERROR "Please run as root."
+# check if this script is running with sudo
+if [ -z "$SUDO_USER" ]; then
+    log ERROR "Please run this script with sudo."
     exit 1
 fi
+
+# set timezone to UTC
+log INFO "Setting timezone to UTC..."
+sudo timedatectl set-timezone UTC || { log ERROR "Failed to set timezone to UTC."; exit 1; }
+log INFO "Timezone set to UTC."
 
 # set the hostname if it's provided
 if [ -n "$hostname" ]; then
     log INFO "Setting hostname to $hostname..."
-    hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
+    sudo hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
     # change /etc/hosts
-    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
+    sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
     log INFO "Hostname set to $hostname."
 fi
 
 # regenerate machine ID
 log INFO "Regenerating machine ID..."
-rm -f /etc/machine-id
-systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
+sudo rm -f /etc/machine-id
+sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
 log INFO "Machine ID regenerated successfully."
 
-# install basic pacakges as root
+# install basic packages
 log INFO "Installing basic packages..."
-apt update || { log ERROR "Failed to update apt."; exit 1; }
-apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
+sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
+sudp apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
+sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
 # add ssh public key
 if [ -n "$ssh_public_key" ]; then
     log "Adding SSH public key to root's authorized_keys..."
-    mkdir -p /root/.ssh
+    sudo mkdir -p /root/.ssh
     echo "$ssh_public_key" >> /root/.ssh/authorized_keys
-    chmod 600 /root/.ssh/authorized_keys
-    chown root:root /root/.ssh/authorized_keys
+    sudo chmod 600 /root/.ssh/authorized_keys
+    sudo chown root:root /root/.ssh/authorized_keys
     log "SSH public key added successfully."
-fi
-
-# add user to sudo group
-if ! getent group sudo | grep -q "\b$user\b"; then
-    log INFO "Adding $user to sudo group..."
-    usermod -aG sudo $user || { log ERROR "Failed to add $user to sudo group."; exit 1; }
-    log INFO "$user added to sudo group."
-else
-    log WARN "$user is already in sudo group."
 fi
 
 check_k3s_ready() {
@@ -173,19 +167,23 @@ check_k3s_ready() {
 if ! k3s --version &> /dev/null; then
     log INFO "Installing k3s without traefik..."
     curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - || { log ERROR "Failed to install k3s."; exit 1; }
-    # directory creation
-    [[ -d /home/$user/.kube ]] || mkdir /home/$user/.kube
-    [[ -d ~/.kube ]] || mkdir ~/.kube
-    # copy k3s
-    sudo cp /etc/rancher/k3s/k3s.yaml /home/$user/.kube/config
-    sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-    # change owner
-    sudo chmod 0644 /home/$user/.kube/config
-    sudo chmod 0644 ~/.kube/config
-    # user
-    sudo chown -R $user /home/$user/.kube/config
-    sudo chown -R root ~/.kube/config
-    # sleep
+    # Copy k3s.yaml to root's .kube directory and ensure directory exists
+    sudo mkdir -p /root/.kube
+    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+    sudo chmod 0644 /root/.kube/config
+
+    # If the script is run with sudo (indicating a non-root user invoked it)
+    if [ ! -z "$SUDO_USER" ]; then
+        # Determine non-root user's home directory dynamically
+        non_root_user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+        
+        # Ensure the .kube directory exists in the non-root user's home and copy the config
+        sudo mkdir -p "$non_root_user_home/.kube"
+        sudo cp /etc/rancher/k3s/k3s.yaml "$non_root_user_home/.kube/config"
+        sudo chmod 0644 "$non_root_user_home/.kube/config"
+        sudo chown $SUDO_USER:$SUDO_USER "$non_root_user_home/.kube/config"
+    fi
+
     sleep 10
     log INFO "k3s installed successfully."
 
