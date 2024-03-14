@@ -137,7 +137,7 @@ log INFO "Machine ID regenerated successfully."
 # install basic packages
 log INFO "Installing basic packages..."
 sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
-sudp apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
+sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
 sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
