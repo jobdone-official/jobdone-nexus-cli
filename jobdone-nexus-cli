@@ -234,7 +234,7 @@ if ! kubectl get apps -n argocd | grep -q "\b$argocd_project\b"; then
     else
         # Check if the error is because the repo already exists
         if echo "$bootstrap_output" | grep -q "folder bootstrap already exist"; then
-            log INFO "ArgoCD Autopilot repo already bootstrapped. Continuing..."
+            log WARN "ArgoCD Autopilot repo already bootstrapped. Continuing..."
         else
             # Handle other errors
             log ERROR "Failed to bootstrap the ArgoCD Autopilot repo: $bootstrap_output"
@@ -243,11 +243,21 @@ if ! kubectl get apps -n argocd | grep -q "\b$argocd_project\b"; then
     fi
 
     log INFO "Creating project $argocd_project..."
-    argocd-autopilot project create $argocd_project || { log ERROR "Failed to create project $argocd_project."; exit 1; }
+    # Attempt to create the ArgoCD Autopilot project, capturing both stdout and stderr
+    project_create_output=$(argocd-autopilot project create $argocd_project 2>&1)
 
-    log INFO "Installing app..."
-    argocd-autopilot app create demoapp --app $argocd_app_url -p $argocd_project || { log ERROR "Failed to install demo app."; exit 1; }
-    log INFO "App installed successfully."
+    if [ $? -eq 0 ]; then
+        log INFO "Project '$argocd_project' created successfully."
+    else
+        # Check if the error is because the project already exists
+        if echo "$project_create_output" | grep -q "project '$argocd_project' already exists"; then
+            log WARN "Project '$argocd_project' already exists. Continuing..."
+        else
+            # Handle other errors
+            log ERROR "Failed to create project '$argocd_project': $project_create_output"
+            exit 1
+        fi
+    fi
 
     log INFO "ArgoCD application installed successfully."
 else
