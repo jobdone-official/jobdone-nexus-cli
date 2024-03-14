@@ -36,7 +36,6 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
 
   ```bash
   jobdone-nexus-cli install \
-    --user "<user>" \
     --hostname "<hostname>" \
     --ssh-public-key "<SSH-Public-Key>" \
     --zerotier-id "<zerotier-id>" \
@@ -56,7 +55,6 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
 
   ```bash
   jobdone-nexus-cli install \
-    --user "<user>" \
     --hostname "<hostname>" \
     --ssh-public-key "<SSH-Public-Key>" \
     --zerotier-id "<zerotier-id>" \
@@ -82,7 +80,6 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
 
   ```bash
   jobdone-nexus-cli install \
-    --user "user-1" \
     --hostname "nexus-server-1" \
     --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
     --zerotier-id "e5cd7a82840b9b7e" \
@@ -102,7 +99,6 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
 
   ```bash
   jobdone-nexus-cli install \
-    --user "user-1" \
     --hostname "nexus-server-1" \
     --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
     --zerotier-id "e5cd7a82840b9b7e" \
