@@ -274,7 +274,6 @@ if [ -n "$argocd_git_repo_url" ] && [ -n "$argocd_git_token" ] && [ -n "$argocd_
         log ERROR "Failed to create ArgoCD app $argocd_app_name: $app_create_output"
     fi
 
-    log INFO "ArgoCD application installed successfully."
 else
     log WARN "Please set the required environment variables to install ArgoCD application."
 fi

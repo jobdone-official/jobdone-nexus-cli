@@ -4,24 +4,16 @@
 
 This section guides you through the installation process of `jobdone-nexus-cli`. Begin by ensuring you have root access, as the installation requires elevated permissions.
 
-### Become the Root User
-
-To switch to the root user, execute the following command in your terminal:
-
-```bash
-su -
-```
-
 ### Install Dependencies and `jobdone-nexus-cli`
 
 Run the following commands to clean up your package lists, update your system, install `curl`, and finally, download and install the `jobdone-nexus-cli`:
 
 ```bash
-apt clean && apt autoclean && apt update && apt upgrade -y
+sudo apt clean && sudo apt autoclean && sudo apt update && sudo apt upgrade -y
 
-apt install curl -y
+sudo apt install curl -y
 
-curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/jobdone-official/jobdone-nexus-cli/main/jobdone-nexus-cli && chmod +x /usr/local/bin/jobdone-nexus-cli
+sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/jobdone-official/jobdone-nexus-cli/main/jobdone-nexus-cli && sudo chmod +x /usr/local/bin/jobdone-nexus-cli
 ```
 
 ## Usage 🔍
