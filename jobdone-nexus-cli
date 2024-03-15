@@ -5,7 +5,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-private-key <ssh_private_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-app-path <argocd_app_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --argocd-repo-url <argocd_repo_url> --argocd-app-path <argocd_app_path> --argocd-private-ssh-key-path <argocd_private_ssh_key_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -24,11 +24,9 @@ EOF
 
 # Initialize variables
 hostname=""
-ssh_private_key_name=""
-ssh_private_key=""
-zerotier_id=""
-argocd_git_repo_url=""
+argocd_repo_url=""
 argocd_app_path=""
+argocd_private_ssh_key_path=""
 hcp_client_id=""
 hcp_client_id_secret=""
 hcp_org_id=""
@@ -38,6 +36,7 @@ trmm_api_url=""
 trmm_client_id=""
 trmm_site_id=""
 trmm_auth_key=""
+zerotier_id=""
 static_ip=""
 gateway=""
 netmask=""
@@ -47,11 +46,9 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
-        --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
-        --ssh-private-key) ssh_private_key="$2"; shift ;;
-        --zerotier-id) zerotier_id="$2"; shift ;;
-        --argocd-git-repo-url) argocd_git_repo_url="$2"; shift ;;
+        --argocd-repo-url) argocd_repo_url="$2"; shift ;;
         --argocd-app-path) argocd_app_path="$2"; shift ;;
+        --argocd-private-ssh-key-path) argocd_private_ssh_key_path="$2"; shift ;;
         --hcp-client-id) hcp_client_id="$2"; shift ;;
         --hcp-client-id-secret) hcp_client_id_secret="$2"; shift ;;
         --hcp-org-id) hcp_org_id="$2"; shift ;;
@@ -61,6 +58,7 @@ while [[ "$#" -gt 0 ]]; do
         --trmm-client-id) trmm_client_id="$2"; shift ;;
         --trmm-site-id) trmm_site_id="$2"; shift ;;
         --trmm-auth-key) trmm_auth_key="$2"; shift ;;
+        --zerotier-id) zerotier_id="$2"; shift ;;
         --static-ip) static_ip="$2"; shift ;;
         --gateway) gateway="$2"; shift ;;
         --netmask) netmask="$2"; shift ;;
@@ -71,8 +69,14 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$hostname" ] || [ -z "$ssh_private_key_name" ] || [ -z "$ssh_private_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_app_path" ] || [ -z "$hcp_client_id" ] || [ -z "$hcp_client_id_secret" ] || [ -z "$hcp_org_id" ] || [ -z "$hcp_project_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-private-key <ssh_private_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-app-path <argocd_app_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+# optional params:
+# - zerotier_id
+# - static_ip
+# - gateway
+# - netmask
+# - dns
+if [ -z "$hostname" ] || [ -z "$argocd_repo_url" ] || [ -z "$argocd_app_path" ] || [ -z "$argocd_private_ssh_key_path" ] || [ -z "$hcp_client_id" ] || [ -z "$hcp_org_id" ] || [ -z "$hcp_project_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --argocd-repo-url <argocd_repo_url> --argocd-app-path <argocd_app_path> --argocd-private-ssh-key-path <argocd_private_ssh_key_path> --hcp-client-id <hcp_client_id> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 
@@ -95,10 +99,9 @@ log() {
 
 # log params
 echo "hostname: $hostname"
-echo "zerotier_id: $zerotier_id"
-echo "ssh_private_key_name: $ssh_private_key_name"
-echo "argocd_git_repo_url: $argocd_git_repo_url"
+echo "argocd_repo_url: $argocd_repo_url"
 echo "argocd_app_path: $argocd_app_path"
+echo "argocd_private_ssh_key_path: $argocd_private_ssh_key_path"
 echo "hcp_client_id: $hcp_client_id"
 echo "hcp_org_id: $hcp_org_id"
 echo "hcp_project_id: $hcp_project_id"
@@ -107,6 +110,7 @@ echo "trmm_api_url: $trmm_api_url"
 echo "trmm_client_id: $trmm_client_id"
 echo "trmm_site_id: $trmm_site_id"
 echo "trmm_auth_key: $trmm_auth_key"
+echo "zerotier_id: $zerotier_id"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
@@ -144,26 +148,6 @@ sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
 sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
 sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
-
-# Add SSH private key if both name and key are provided
-if [ -n "$ssh_private_key_name" ] && [ -n "$ssh_private_key" ]; then
-    log "Adding SSH private key"
-
-    # Determine the current user's home directory
-    USER_HOME=$(eval echo ~$USER)
-
-    # Ensure the .ssh directory exists
-    mkdir -p "$USER_HOME/.ssh"
-
-    # Write the private key to the specified file
-    echo "$ssh_private_key" > "$USER_HOME/.ssh/$ssh_private_key_name"
-
-    # Set the file's permissions to be read/write by the file owner only
-    chmod 600 "$USER_HOME/.ssh/$ssh_private_key_name"
-
-    # Inform about the successful addition
-    log "SSH private key added successfully."
-fi
 
 check_k3s_ready() {
     while true; do
@@ -250,14 +234,14 @@ else
     log WARN "ArgoCD CLI is already installed."
 fi
 
-# if the argocd namespace exists and argocd cli are installed, then connect to the argocd_git_repo_url and install the argocd_app
+# if the argocd namespace exists and argocd cli are installed, then connect to the argocd_repo_url and install the argocd_app
 if kubectl get namespace argocd &> /dev/null && argocd version &> /dev/null; then
     log INFO "Installing the ArgoCD app..."
     # set the current context to argocd namespace
     kubectl config set-context --current --namespace=argocd
-    # add the argocd_git_repo_url to the argocd cli
-    argocd repo add $argocd_git_repo_url --ssh-private-key-path /root/.ssh/$ssh_private_key_name || log ERROR "Failed to add ArgoCD repo.";
-    argocd app create $argocd_app_path --repo $argocd_git_repo_url --path $argocd_app_path --dest-server https://kubernetes.default.svc --dest-namespace argocd --sync-policy automated --auto-prune || log ERROR "Failed to create ArgoCD app.";
+    # add the argocd_repo_url to the argocd cli
+    argocd repo add $argocd_repo_url --ssh-private-key-path /root/.ssh/$ssh_private_key_name || log ERROR "Failed to add ArgoCD repo.";
+    argocd app create $argocd_app_path --repo $argocd_repo_url --path $argocd_app_path --dest-server https://kubernetes.default.svc --dest-namespace argocd --sync-policy automated --auto-prune || log ERROR "Failed to create ArgoCD app.";
     log INFO "ArgoCD app installed successfully."
 else
     log WARN "ArgoCD namespace does not exist or ArgoCD CLI is not installed. Skipping ArgoCD app installation."
