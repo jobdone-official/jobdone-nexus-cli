@@ -122,6 +122,12 @@ if [ -z "$SUDO_USER" ]; then
     exit 1
 fi
 
+# check if the argocd_private_ssh_key_path exists
+if [ ! -f "/root/.ssh/$argocd_private_ssh_key_path" ]; then
+    log ERROR "The private SSH key for ArgoCD does not exist."
+    exit 1
+fi
+
 # set timezone to UTC
 log INFO "Setting timezone to UTC..."
 sudo timedatectl set-timezone UTC || { log ERROR "Failed to set timezone to UTC."; exit 1; }
