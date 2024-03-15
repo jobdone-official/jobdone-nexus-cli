@@ -5,7 +5,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-private-key <ssh_private_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-app-path <argocd_app_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -24,14 +24,15 @@ EOF
 
 # Initialize variables
 hostname=""
-ssh_public_key=""
+ssh_private_key_name=""
+ssh_private_key=""
 zerotier_id=""
 argocd_git_repo_url=""
-argocd_git_token=""
-argocd_git_directory=""
-argocd_project=""
-argocd_app_url=""
-argocd_app_name=""
+argocd_app_path=""
+hcp_client_id=""
+hcp_client_id_secret=""
+hcp_org_id=""
+hcp_project_id=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
@@ -46,14 +47,15 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
-        --ssh-public-key) ssh_public_key="$2"; shift ;;
+        --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
+        --ssh-private-key) ssh_private_key="$2"; shift ;;
         --zerotier-id) zerotier_id="$2"; shift ;;
         --argocd-git-repo-url) argocd_git_repo_url="$2"; shift ;;
-        --argocd-git-token) argocd_git_token="$2"; shift ;;
-        --argocd-git-directory) argocd_git_directory="$2"; shift ;;
-        --argocd-project) argocd_project="$2"; shift ;;
-        --argocd-app-url) argocd_app_url="$2"; shift ;;
-        --argocd-app-name) argocd_app_name="$2"; shift ;;
+        --argocd-app-path) argocd_app_path="$2"; shift ;;
+        --hcp-client-id) hcp_client_id="$2"; shift ;;
+        --hcp-client-id-secret) hcp_client_id_secret="$2"; shift ;;
+        --hcp-org-id) hcp_org_id="$2"; shift ;;
+        --hcp-project-id) hcp_project_id="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
@@ -69,8 +71,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$argocd_app_name" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+if [ -z "$hostname" ] || [ -z "$ssh_private_key_name" ] || [ -z "$ssh_private_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_app_path" ] || [ -z "$hcp_client_id" ] || [ -z "$hcp_client_id_secret" ] || [ -z "$hcp_org_id" ] || [ -z "$hcp_project_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-private-key <ssh_private_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-app-path <argocd_app_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 
@@ -93,14 +95,13 @@ log() {
 
 # log params
 echo "hostname: $hostname"
-echo "ssh_public_key: $ssh_public_key"
 echo "zerotier_id: $zerotier_id"
+echo "ssh_private_key_name: $ssh_private_key_name"
 echo "argocd_git_repo_url: $argocd_git_repo_url"
-echo "argocd_git_token: $argocd_git_token"
-echo "argocd_git_directory: $argocd_git_directory"
-echo "argocd_project: $argocd_project"
-echo "argocd_app_url: $argocd_app_url"
-echo "argocd_app_name: $argocd_app_name"
+echo "argocd_app_path: $argocd_app_path"
+echo "hcp_client_id: $hcp_client_id"
+echo "hcp_org_id: $hcp_org_id"
+echo "hcp_project_id: $hcp_project_id"
 echo "trmm_mesh_agent: $trmm_mesh_agent"
 echo "trmm_api_url: $trmm_api_url"
 echo "trmm_client_id: $trmm_client_id"
@@ -144,14 +145,24 @@ sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
 sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
-# add ssh public key
-if [ -n "$ssh_public_key" ]; then
-    log "Adding SSH public key to root's authorized_keys..."
-    sudo mkdir -p /root/.ssh
-    echo "$ssh_public_key" >> /root/.ssh/authorized_keys
-    sudo chmod 600 /root/.ssh/authorized_keys
-    sudo chown root:root /root/.ssh/authorized_keys
-    log "SSH public key added successfully."
+# Add SSH private key if both name and key are provided
+if [ -n "$ssh_private_key_name" ] && [ -n "$ssh_private_key" ]; then
+    log "Adding SSH private key"
+
+    # Determine the current user's home directory
+    USER_HOME=$(eval echo ~$USER)
+
+    # Ensure the .ssh directory exists
+    mkdir -p "$USER_HOME/.ssh"
+
+    # Write the private key to the specified file
+    echo "$ssh_private_key" > "$USER_HOME/.ssh/$ssh_private_key_name"
+
+    # Set the file's permissions to be read/write by the file owner only
+    chmod 600 "$USER_HOME/.ssh/$ssh_private_key_name"
+
+    # Inform about the successful addition
+    log "SSH private key added successfully."
 fi
 
 check_k3s_ready() {
@@ -165,6 +176,20 @@ check_k3s_ready() {
         fi
     done
 }
+
+# zerotier (optional)
+if [ -n "$zerotier_id" ]; then
+    log INFO "Setting up ZeroTier..."
+    if ! zerotier-cli -v &> /dev/null; then
+        curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
+        sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
+        log INFO "ZeroTier setup complete."
+    else
+        log WARN "ZeroTier is already installed."
+    fi
+else
+    log WARN "ZeroTier ID is not provided. Skipping ZeroTier setup."
+fi
 
 # k3s
 if ! k3s --version &> /dev/null; then
@@ -195,87 +220,47 @@ else
     log WARN "k3s is already installed."
 fi
 
-# argocd autopilot
-if ! argocd-autopilot version &> /dev/null; then
-    log INFO "Installing ArgoCD Autopilot..."
-    VERSION=$(curl --silent "https://api.github.com/repos/argoproj-labs/argocd-autopilot/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
-    curl -L --output - "https://github.com/argoproj-labs/argocd-autopilot/releases/download/$VERSION/argocd-autopilot-linux-amd64.tar.gz" | tar zx
-    mv ./argocd-autopilot-* /usr/local/bin/argocd-autopilot
-    chmod +x /usr/local/bin/argocd-autopilot
-    log INFO "ArgoCD Autopilot installed successfully."
+# create jobdone-nexus namespace
+if ! kubectl get namespace jobdone-nexus &> /dev/null; then
+    log INFO "Creating jobdone-nexus namespace..."
+    kubectl create namespace jobdone-nexus || { log ERROR "Failed to create jobdone-nexus namespace."; exit 1;}
+    log INFO "jobdone-nexus namespace created successfully."
 else
-    log WARN "ArgoCD Autopilot is already installed."
+    log WARN "jobdone-nexus namespace already exists."
 fi
 
-# argocd application
-## check if there is already a project with the same name
-
-## continue only if all enviroment variables are set
-
-if [ -n "$argocd_git_repo_url" ] && [ -n "$argocd_git_token" ] && [ -n "$argocd_git_directory" ] && [ -n "$argocd_project" ] && [ -n "$argocd_app_url" ] && [ -n "$argocd_app_name" ]; then
-    export GIT_TOKEN=$argocd_git_token
-
-    # check if there is a trailing slash in the git repo url, if yes, remove it
-    if [[ $argocd_git_repo_url == */ ]]; then
-        argocd_git_repo_url=${argocd_git_repo_url%?}
-    fi
-
-    # check if there is a leading slash in the git directory, if yes, remove it
-    if [[ $argocd_git_directory == /* ]]; then
-        argocd_git_directory=${argocd_git_directory#?}
-    fi
-
-    export GIT_REPO="$argocd_git_repo_url/$argocd_git_directory"
-    log INFO "GIT_REPO: $GIT_REPO"
-
-    log INFO "GIT_TOKEN and GIT_REPO environment variables are set."
-
-    log INFO "Bootstrapping the ArgoCD Autopilot repo..."
-
-    # Attempt to bootstrap the ArgoCD Autopilot repo, capturing both stdout and stderr
-    bootstrap_output=$(argocd-autopilot repo bootstrap 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "ArgoCD Autopilot repo bootstrapped successfully."
-    else
-        # Check if the error is because the repo already exists
-        if echo "$bootstrap_output" | grep -q "folder bootstrap already exist"; then
-            log WARN "ArgoCD Autopilot repo already bootstrapped. Continuing..."
-        else
-            # Handle other errors
-            log ERROR "Failed to bootstrap the ArgoCD Autopilot repo: $bootstrap_output"
-            exit 1
-        fi
-    fi
-
-    log INFO "Creating project $argocd_project..."
-    # Attempt to create the ArgoCD Autopilot project, capturing both stdout and stderr
-    project_create_output=$(argocd-autopilot project create $argocd_project 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "Project '$argocd_project' created successfully."
-    else
-        # Check if the error is because the project already exists
-        if echo "$project_create_output" | grep -q "project '$argocd_project' already exists"; then
-            log WARN "Project '$argocd_project' already exists. Continuing..."
-        else
-            # Handle other errors
-            log ERROR "Failed to create project '$argocd_project': $project_create_output"
-            exit 1
-        fi
-    fi
-
-    # Attempt to create the ArgoCD Autopilot app, capturing both stdout and stderr
-    app_create_output=$(argocd-autopilot app create ${argocd_app_name} --app "$argocd_app_url" -p "$argocd_project" 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "ArgoCD app $argocd_app_name created successfully."
-    else
-        log ERROR "Failed to create ArgoCD app $argocd_app_name: $app_create_output"
-    fi
-
+# install argocd
+if ! kubectl get namespace argocd &> /dev/null; then
+    log INFO "Installing ArgoCD..."
+    kubectl create namespace argocd || log ERROR "Failed to create argocd namespace.";
+    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml || log ERROR "Failed to install ArgoCD.";
+    log INFO "ArgoCD installed successfully."
 else
-    log WARN "Please set the required environment variables to install ArgoCD application."
+    log WARN "ArgoCD is already installed."
+fi
+
+# install argocd cli
+if kubectl ! argocd version &> /dev/null; then
+    log INFO "Installing ArgoCD CLI..."
+    curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+    sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+    rm argocd-linux-amd64
+    log INFO "ArgoCD CLI installed successfully."
+else
+    log WARN "ArgoCD CLI is already installed."
+fi
+
+# if the argocd namespace exists and argocd cli are installed, then connect to the argocd_git_repo_url and install the argocd_app
+if kubectl get namespace argocd &> /dev/null && argocd version &> /dev/null; then
+    log INFO "Installing the ArgoCD app..."
+    # set the current context to argocd namespace
+    kubectl config set-context --current --namespace=argocd
+    # add the argocd_git_repo_url to the argocd cli
+    argocd repo add $argocd_git_repo_url --ssh-private-key-path /root/.ssh/$ssh_private_key_name || log ERROR "Failed to add ArgoCD repo.";
+    argocd app create $argocd_app_path --repo $argocd_git_repo_url --path $argocd_app_path --dest-server https://kubernetes.default.svc --dest-namespace argocd --sync-policy automated --auto-prune || log ERROR "Failed to create ArgoCD app.";
+    log INFO "ArgoCD app installed successfully."
+else
+    log WARN "ArgoCD namespace does not exist or ArgoCD CLI is not installed. Skipping ArgoCD app installation."
 fi
 
 # eget
@@ -291,6 +276,17 @@ else
     log WARN "eget is already installed."
 fi
 
+# helm
+if ! helm version &> /dev/null; then
+    log INFO "Installing helm..."
+    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || log ERROR "Failed to install helm.";
+    chmod 700 get_helm.sh
+    ./get_helm.sh
+    log INFO "helm installed successfully."
+else
+    log WARN "helm is already installed."
+fi
+
 # k9s
 if ! k9s version &> /dev/null; then
     log INFO "Installing k9s to /usr/local/bin"
@@ -300,14 +296,45 @@ else
     log WARN "k9s is already installed."
 fi
 
-# zerotier
-if ! zerotier-cli -v &> /dev/null; then
-    log INFO "Setting up ZeroTier..."
-    curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
-    sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
-    log INFO "ZeroTier setup complete."
+# HCP Secrets
+# https://developer.hashicorp.com/vault/tutorials/hcp-vault-secrets-get-started/kubernetes-vso
+if helm version &> /dev/null && kubectl version &> /dev/null; then
+    if [ -n "$hcp_client_id" && -n "$hcp_client_id_secret" ]; then
+        log INFO "Installing HCP Secrets..."
+        # add the hashicorp helm repository
+        helm repo add hashicorp https://helm.releases.hashicorp.com || log ERROR "Failed to add hashicorp helm repository."
+        # create a namespace for the vault-secrets-operator
+        helm install vault-secrets-operator hashicorp/vault-secrets-operator \
+        --namespace vault-secrets-operator-system \
+        --create-namespace
+
+        # create a secret for the HCP principal client id and secret
+        kubectl create secret generic vso-sp \
+          --namespace jobdone-nexus \
+          --from-literal=clientID=$hcp_client_id \
+          --from-literal=clientSecret=$hcp_client_id_secret
+
+        # create vault secret operator with hcp organization and project id
+        kubectl create -f - <<EOF
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: HCPAuth
+metadata:
+    name: jobdone-nexus
+    namespace: vault-secrets-operator-system
+spec:
+    organizationID: $hcp_org_id
+    projectID: $hcp_project_id
+    servicePrincipal:
+        secretRef: vso-sp
+EOF
+
+        log INFO "HCP Secrets installed successfully."
+    else
+        log WARN "HCP principal client id is not provided. Skipping HCP Secrets installation."
+    fi
 else
-    log WARN "ZeroTier is already installed."
+    log WARN "Helm or kubectl is not installed. Skipping HCP Secrets installation."
 fi
 
 # tacticalrmm agent

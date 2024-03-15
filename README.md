@@ -6,7 +6,7 @@ This section guides you through the installation process of `jobdone-nexus-cli`.
 
 ### Install Dependencies and `jobdone-nexus-cli`
 
-Run the following commands to clean up your package lists, update your system, install `curl`, and finally, download and install the `jobdone-nexus-cli`:
+Run the following commands to clean up your package lists, update your system, install necessary packages like `curl`, and download and install the `jobdone-nexus-cli`:
 
 ```bash
 sudo apt clean && sudo apt autoclean && sudo apt update && sudo apt upgrade -y
@@ -18,68 +18,51 @@ sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/
 
 ## Usage 🔍
 
-Please be aware that the `trmm-auth-key` expires and will need to be renewed periodically.
+Note: The `trmm-auth-key` and other sensitive parameters may expire or require updating over time. Ensure you maintain these credentials securely and update them as necessary.
 
 ### Command Parameters
 
-When executing the `jobdone-nexus-cli install` command, you'll need to specify several parameters to tailor the installation to your environment:
+When executing the `jobdone-nexus-cli install` command, specify the following parameters to tailor the installation to your environment. Include network parameters if configuring network settings during installation:
 
-- **Without network (optional):**
+```bash
+jobdone-nexus-cli install \
+  --hostname "<hostname>" \
+  --ssh-private-key-name "<SSH-Private-Key-Name>" \
+  --ssh-private-key "<SSH-Private-Key>" \
+  --zerotier-id "<zerotier-id>" \
+  --argocd-git-repo-url "<argocd-git-repo-url>" \
+  --argocd-app-path "<argocd-app-path>" \
+  --hcp-client-id "<hcp-client-id>" \
+  --hcp-client-id-secret "<hcp-client-id-secret>" \
+  --hcp-org-id "<hcp-org-id>" \
+  --hcp-project-id "<hcp-project-id>" \
+  --trmm-mesh-agent "<trmm-mesh-agent>" \
+  --trmm-api-url "<trmm-api-url>" \
+  --trmm-client-id <trmm-client-id> \
+  --trmm-site-id <trmm-site-id> \
+  --trmm-auth-key "<trmm-auth-key>" \
+  --static-ip "<static_ip>" \
+  --gateway "<gateway>" \
+  --netmask "<netmask>" \
+  --dns "<dns>"
+```
 
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "<hostname>" \
-    --ssh-public-key "<SSH-Public-Key>" \
-    --zerotier-id "<zerotier-id>" \
-    --argocd-git-repo-url "argocd-git-repo-url" \
-    --argocd-git-token "argocd-git-token" \
-    --argocd-git-directory "argocd-git-directory" \
-    --argocd-project "argocd-project" \
-    --argocd-app-url "argocd-app-url" \
-    --trmm-mesh-agent "<trmm-mesh-agent>" \
-    --trmm-api-url "<trmm-api-url>" \
-    --trmm-client-id <trmm-client-id> \
-    --trmm-site-id <trmm-site-id> \
-    --trmm-auth-key <"trmm-auth-key">
-  ```
+#### Example Usage
 
-- **With network:**
-
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "<hostname>" \
-    --ssh-public-key "<SSH-Public-Key>" \
-    --zerotier-id "<zerotier-id>" \
-    --argocd-git-repo-url "argocd-git-repo-url" \
-    --argocd-git-token "argocd-git-token" \
-    --argocd-git-directory "argocd-git-directory" \
-    --argocd-project "argocd-project" \
-    --argocd-app-url "argocd-app-url" \
-    --trmm-mesh-agent "<trmm-mesh-agent>" \
-    --trmm-api-url "<trmm-api-url>" \
-    --trmm-client-id <trmm-client-id> \
-    --trmm-site-id <trmm-site-id> \
-    --trmm-auth-key "<trmm-auth-key>" \
-    --static_ip <static_ip> \
-    --gateway <gateway> \
-    --netmask <netmask> \
-    --dns <dns>
-  ```
-
-#### Examples
-
-- **Without network (optional):**
+- **Basic Installation Example** (minimal setup without network configuration):
 
   ```bash
   jobdone-nexus-cli install \
     --hostname "nexus-server-1" \
-    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
+    --ssh-private-key-name "id_rsa" \
+    --ssh-private-key "$(cat ~/.ssh/id_rsa)" \
     --zerotier-id "e5cd7a82840b9b7e" \
     --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-git-token "token123" \
-    --argocd-git-directory "directory-name" \
-    --argocd-project "project-name" \
-    --argocd-app-url "https://git.example.com/app.git" \
+    --argocd-app-path "path/to/app" \
+    --hcp-client-id "example-client-id" \
+    --hcp-client-id-secret "example-client-secret" \
+    --hcp-org-id "example-org-id" \
+    --hcp-project-id "example-project-id" \
     --trmm-mesh-agent "meshagent.example.com" \
     --trmm-api-url "https://api.trmm.example.com" \
     --trmm-client-id 1 \
@@ -87,18 +70,20 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --trmm-auth-key "authkey789"
   ```
 
-- **With network:**
+- **Full Installation Example** (with network configuration):
 
   ```bash
   jobdone-nexus-cli install \
     --hostname "nexus-server-1" \
-    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
+    --ssh-private-key-name "id_rsa" \
+    --ssh-private-key "$(cat ~/.ssh/id_rsa)" \
     --zerotier-id "e5cd7a82840b9b7e" \
     --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-git-token "token123" \
-    --argocd-git-directory "directory-name" \
-    --argocd-project "project-name" \
-    --argocd-app-url "https://git.example.com/app.git" \
+    --argocd-app-path "path/to/app" \
+    --hcp-client-id "example-client-id" \
+    --hcp-client-id-secret "example-client-secret" \
+    --hcp-org-id "example-org-id" \
+    --hcp-project-id "example-project-id" \
     --trmm-mesh-agent "meshagent.example.com" \
     --trmm-api-url "https://api.trmm.example.com" \
     --trmm-client-id 1 \
@@ -109,3 +94,5 @@ When executing the `jobdone-nexus-cli install` command, you'll need to specify s
     --netmask "255.255.255.0" \
     --dns "8.8.8.8"
   ```
+
+These examples demonstrate the flexibility and customization available with the `jobdone-nexus-cli` installation process, catering to various infrastructure needs and configurations.
