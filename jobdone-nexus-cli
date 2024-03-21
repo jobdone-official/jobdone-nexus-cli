@@ -152,7 +152,7 @@ log INFO "Machine ID regenerated successfully."
 log INFO "Installing basic packages..."
 sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
 sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
-sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
+sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
 check_k3s_ready() {
@@ -184,22 +184,19 @@ fi
 # k3s
 if ! k3s --version &> /dev/null; then
     log INFO "Installing k3s without traefik..."
-    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san 10.253.143.68" sh - || { log ERROR "Failed to install k3s."; exit 1; }
     # Copy k3s.yaml to root's .kube directory and ensure directory exists
     sudo mkdir -p /root/.kube
     sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
     sudo chmod 0644 /root/.kube/config
 
     # If the script is run with sudo (indicating a non-root user invoked it)
-    if [ ! -z "$SUDO_USER" ]; then
-        # Determine non-root user's home directory dynamically
-        non_root_user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-        
+    if [ ! -z "scjdn" ]; then       
         # Ensure the .kube directory exists in the non-root user's home and copy the config
-        sudo mkdir -p "$non_root_user_home/.kube"
-        sudo cp /etc/rancher/k3s/k3s.yaml "$non_root_user_home/.kube/config"
-        sudo chmod 0644 "$non_root_user_home/.kube/config"
-        sudo chown $SUDO_USER:$SUDO_USER "$non_root_user_home/.kube/config"
+        sudo mkdir -p "/home/scjdn/.kube"
+        sudo cp /etc/rancher/k3s/k3s.yaml "/home/scjdn/.kube/config"
+        sudo chmod 0644 "/home/scjdn/.kube/config"
+        sudo chown scjdn:scjdn "/home/scjdn/.kube/config"
     fi
 
     sleep 10
@@ -219,40 +216,6 @@ else
     log WARN "jobdone-nexus namespace already exists."
 fi
 
-# install argocd
-if ! kubectl get namespace argocd &> /dev/null; then
-    log INFO "Installing ArgoCD..."
-    kubectl create namespace argocd || log ERROR "Failed to create argocd namespace.";
-    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml || log ERROR "Failed to install ArgoCD.";
-    log INFO "ArgoCD installed successfully."
-else
-    log WARN "ArgoCD is already installed."
-fi
-
-# install argocd cli
-if kubectl ! argocd version &> /dev/null; then
-    log INFO "Installing ArgoCD CLI..."
-    curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-    sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-    rm argocd-linux-amd64
-    log INFO "ArgoCD CLI installed successfully."
-else
-    log WARN "ArgoCD CLI is already installed."
-fi
-
-# if the argocd namespace exists and argocd cli are installed, then connect to the argocd_repo_url and install the argocd_app
-if kubectl get namespace argocd &> /dev/null && argocd version &> /dev/null; then
-    log INFO "Installing the ArgoCD app..."
-    # set the current context to argocd namespace
-    kubectl config set-context --current --namespace=argocd
-    # add the argocd_repo_url to the argocd cli
-    argocd repo add $argocd_repo_url --ssh-private-key-path /root/.ssh/$ssh_private_key_name || log ERROR "Failed to add ArgoCD repo.";
-    argocd app create $argocd_app_path --repo $argocd_repo_url --path $argocd_app_path --dest-server https://kubernetes.default.svc --dest-namespace argocd --sync-policy automated --auto-prune || log ERROR "Failed to create ArgoCD app.";
-    log INFO "ArgoCD app installed successfully."
-else
-    log WARN "ArgoCD namespace does not exist or ArgoCD CLI is not installed. Skipping ArgoCD app installation."
-fi
-
 # eget
 if ! eget --version &> /dev/null; then
     log INFO "Installing eget..."
@@ -266,17 +229,6 @@ else
     log WARN "eget is already installed."
 fi
 
-# helm
-if ! helm version &> /dev/null; then
-    log INFO "Installing helm..."
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash || log ERROR "Failed to install helm.";
-    chmod 700 get_helm.sh
-    ./get_helm.sh
-    log INFO "helm installed successfully."
-else
-    log WARN "helm is already installed."
-fi
-
 # k9s
 if ! k9s version &> /dev/null; then
     log INFO "Installing k9s to /usr/local/bin"
@@ -284,47 +236,6 @@ if ! k9s version &> /dev/null; then
     log INFO "k9s installed successfully."
 else
     log WARN "k9s is already installed."
-fi
-
-# HCP Secrets
-# https://developer.hashicorp.com/vault/tutorials/hcp-vault-secrets-get-started/kubernetes-vso
-if helm version &> /dev/null && kubectl version &> /dev/null; then
-    if [ -n "$hcp_client_id" && -n "$hcp_client_id_secret" ]; then
-        log INFO "Installing HCP Secrets..."
-        # add the hashicorp helm repository
-        helm repo add hashicorp https://helm.releases.hashicorp.com || log ERROR "Failed to add hashicorp helm repository."
-        # create a namespace for the vault-secrets-operator
-        helm install vault-secrets-operator hashicorp/vault-secrets-operator \
-        --namespace vault-secrets-operator-system \
-        --create-namespace
-
-        # create a secret for the HCP principal client id and secret
-        kubectl create secret generic vso-sp \
-          --namespace jobdone-nexus \
-          --from-literal=clientID=$hcp_client_id \
-          --from-literal=clientSecret=$hcp_client_id_secret
-
-        # create vault secret operator with hcp organization and project id
-        kubectl create -f - <<EOF
----
-apiVersion: secrets.hashicorp.com/v1beta1
-kind: HCPAuth
-metadata:
-    name: jobdone-nexus
-    namespace: vault-secrets-operator-system
-spec:
-    organizationID: $hcp_org_id
-    projectID: $hcp_project_id
-    servicePrincipal:
-        secretRef: vso-sp
-EOF
-
-        log INFO "HCP Secrets installed successfully."
-    else
-        log WARN "HCP principal client id is not provided. Skipping HCP Secrets installation."
-    fi
-else
-    log WARN "Helm or kubectl is not installed. Skipping HCP Secrets installation."
 fi
 
 # tacticalrmm agent
