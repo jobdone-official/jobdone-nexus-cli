@@ -23,6 +23,10 @@ EOF
 
 # Initialize variables
 hostname=""
+docker_server=""
+docker_username=""
+docker_password=""
+docker_email=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
@@ -38,6 +42,10 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
+        --docker-server) docker_server="$2"; shift ;;
+        --docker-username) docker_username="$2"; shift ;;
+        --docker-password) docker_password="$2"; shift ;;
+        --docker-email) docker_email="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
@@ -60,11 +68,23 @@ done
 # - gateway
 # - netmask
 # - dns
-if [ -z "$hostname" ] || [ -z "$argocd_repo_url" ] || [ -z "$argocd_app_path" ] || [ -z "$argocd_private_ssh_key_path" ] || [ -z "$hcp_client_id" ] || [ -z "$hcp_org_id" ] || [ -z "$hcp_project_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --argocd-repo-url <argocd_repo_url> --argocd-app-path <argocd_app_path> --argocd-private-ssh-key-path <argocd_private_ssh_key_path> --hcp-client-id <hcp_client_id> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+if [ -z "$hostname" ] || \
+    [ -z "$docker_server" ] || \
+    [ -z "$docker_username" ] || \
+    [ -z "$docker_password" ] || \
+    [ -z "$docker_email" ] || \
+    [ -z "$hcp_client_id" ] || \
+    [ -z "$hcp_client_id_secret" ] || \
+    [ -z "$hcp_org_id" ] || \
+    [ -z "$hcp_project_id" ] || \
+    [ -z "$trmm_mesh_agent" ] || \
+    [ -z "$trmm_api_url" ] || \
+    [ -z "$trmm_client_id" ] || \
+    [ -z "$trmm_site_id" ] || \
+    [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --hcp-client-id <hcp_client_id> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
-
 # Define log file with timestamp
 log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
 
@@ -84,6 +104,7 @@ log() {
 
 # log params
 echo "hostname: $hostname"
+echo "docker_server: $docker_server"
 echo "zerotier_id: $zerotier_id"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
@@ -146,6 +167,21 @@ if [ ! -f /usr/local/bin/rmmagent ]; then
     log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
 else
     log WARN "TacticalRMM agent is already installed."
+fi
+
+# docker pull secret
+# check if secret with the name docker-pull-secret-1 already exists
+if ! kubectl get secret docker-pull-secret-1 &> /dev/null; then
+    log INFO "Creating docker pull secret..."
+    kubectl create secret docker-registry docker-pull-secret-1 \
+    --docker-server="$docker_server" \
+    --docker-username="$docker_username" \
+    --docker-password="$docker_password" \
+    --docker-email="$docker_email" \
+    -n jobdone-nexus || log ERROR "Failed to create docker pull secret."
+    log INFO "Docker pull secret created successfully."
+else
+    log WARN "Docker pull secret already exists."
 fi
 
 log INFO "JobDone Nexus Installation complete!"
