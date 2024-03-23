@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -21,16 +21,16 @@ EOF
 
 # Initialize variables
 hostname=""
+ssh_private_key_name=""
+ssh_public_key_name=""
 k3s_zerotier_ip=""
-docker_server=""
-docker_username=""
-docker_password=""
-docker_email=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
 trmm_site_id=""
 trmm_auth_key=""
+
+# can be enabled with the addon
 static_ip=""
 gateway=""
 netmask=""
@@ -40,16 +40,16 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
+        --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
+        --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
         --k3s-zerotier-ip) k3s_zerotier_ip="$2"; shift ;;
-        --docker-server) docker_server="$2"; shift ;;
-        --docker-username) docker_username="$2"; shift ;;
-        --docker-password) docker_password="$2"; shift ;;
-        --docker-email) docker_email="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
         --trmm-site-id) trmm_site_id="$2"; shift ;;
         --trmm-auth-key) trmm_auth_key="$2"; shift ;;
+
+        # can be enabled with the addon
         --static-ip) static_ip="$2"; shift ;;
         --gateway) gateway="$2"; shift ;;
         --netmask) netmask="$2"; shift ;;
@@ -60,27 +60,21 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-# optional params:
+# addon params:
 # - static_ip
 # - gateway
 # - netmask
 # - dns
 if [ -z "$hostname" ] || \
+    [ -z "$ssh_private_key_name" ] || \
+    [ -z "$ssh_public_key_name" ] || \
     [ -z "$k3s_zerotier_ip" ] || \
-    [ -z "$docker_server" ] || \
-    [ -z "$docker_username" ] || \
-    [ -z "$docker_password" ] || \
-    [ -z "$docker_email" ] || \
-    [ -z "$hcp_client_id" ] || \
-    [ -z "$hcp_client_id_secret" ] || \
-    [ -z "$hcp_org_id" ] || \
-    [ -z "$hcp_project_id" ] || \
     [ -z "$trmm_mesh_agent" ] || \
     [ -z "$trmm_api_url" ] || \
     [ -z "$trmm_client_id" ] || \
     [ -z "$trmm_site_id" ] || \
     [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 # Define log file with timestamp
@@ -102,8 +96,9 @@ log() {
 
 # log params
 echo "hostname: $hostname"
+echo "ssh_private_key_name: $ssh_private_key_name"
+echo "ssh_public_key_name: $ssh_public_key_name"
 echo "k3s_zerotier_ip: $k3s_zerotier_ip"
-echo "docker_server: $docker_server"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
@@ -151,29 +146,26 @@ sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux iperf3
 log INFO "Basic packages installed successfully."
 
 # Ensure root's .ssh directory exists
-SSH_KEY="id_ed25519"
-SSH_KEY_PUB="id_ed25519.pub"
-
 sudo mkdir -p /root/.ssh
 sudo chmod 700 /root/.ssh
 
 # Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$SSH_KEY" ] && [ ! -f "/root/.ssh/$SSH_KEY" ]; then
+if [ -f "$INVOKER_HOME/.ssh/$ssh_private_key_name" ] && [ ! -f "/root/.ssh/$ssh_private_key_name" ]; then
     log INFO "Copying SSH private key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$SSH_KEY" "/root/.ssh/$SSH_KEY"
-    sudo chmod 600 "/root/.ssh/$SSH_KEY"
-    sudo chown root:root "/root/.ssh/$SSH_KEY"
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_private_key_name" "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to copy SSH private key to root's .ssh directory."; exit 1; }
+    sudo chmod 600 "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set permissions on SSH private key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set ownership on SSH private key."; exit 1; }
     log INFO "SSH private key copied to root's .ssh directory."
 else
     log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
 fi
 
 # Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$SSH_KEY_PUB" ] && [ ! -f "/root/.ssh/$SSH_KEY_PUB" ]; then
+if [ -f "$INVOKER_HOME/.ssh/$ssh_public_key_name" ] && [ ! -f "/root/.ssh/$ssh_public_key_name" ]; then
     log INFO "Copying SSH public key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$SSH_KEY_PUB" "/root/.ssh/$SSH_KEY_PUB"
-    sudo chmod 644 "/root/.ssh/$SSH_KEY_PUB"
-    sudo chown root:root "/root/.ssh/$SSH_KEY_PUB"
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_public_key_name" "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to copy SSH public key to root's .ssh directory."; exit 1; }
+    sudo chmod 644 "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set permissions on SSH public key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set ownership on SSH public key."; exit 1; }
     log INFO "SSH public key copied to root's .ssh directory."
 else
     log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
@@ -198,19 +190,18 @@ if ! k3s --version &> /dev/null; then
 
     # Copy k3s.yaml to root's .kube directory and ensure directory exists
     log INFO "Copying k3s.yaml to root's .kube directory..."
-    sudo mkdir -p /root/.kube
-    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
-    sudo chmod 0644 /root/.kube/config
+    sudo mkdir -p /root/.kube || { log ERROR "Failed to create .kube directory in root's home."; exit 1; }
+    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config || { log ERROR "Failed to copy k3s.yaml to root's .kube directory."; exit 1; }
+    sudo chmod 0644 /root/.kube/config || { log ERROR "Failed to set permissions on k3s.yaml."; exit 1; }
 
     # Dynamic user home directory for kube/config
     log INFO "Ensuring .kube directory exists in the sudo (non-root) user's home and copying the config..."
     # Ensures the .kube directory exists in the sudo (non-root) user's home and copy the config
-    sudo mkdir -p "$INVOKER_HOME/.kube"
-    sudo cp /etc/rancher/k3s/k3s.yaml "$INVOKER_HOME/.kube/config"
-    sudo chmod 0644 "$INVOKER_HOME/.kube/config"
-    sudo chown $SUDO_USER:$SUDO_USER "$INVOKER_HOME/.kube/config"
+    sudo mkdir -p "$INVOKER_HOME/.kube" || { log ERROR "Failed to create .kube directory in the sudo (non-root) user's home."; exit 1; }
+    sudo cp /etc/rancher/k3s/k3s.yaml "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to copy k3s.yaml to the sudo (non-root) user's .kube directory."; exit 1; }
+    sudo chmod 0644 "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to set permissions on k3s.yaml in the sudo (non-root) user's .kube directory."; exit 1; }
+    sudo chown $SUDO_USER:$SUDO_USER "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to set ownership on k3s.yaml in the sudo (non-root) user's .kube directory."; exit 1; }
 
-    sleep 10
     log INFO "k3s installed successfully."
 
     check_k3s_ready
