@@ -4,6 +4,38 @@
 
 This section guides you through the installation process of `jobdone-nexus-cli`. Begin by ensuring you have root access, as the installation requires elevated permissions.
 
+### Prerequisites
+
+Execute the following commands:
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+```
+
+Add the private key:
+
+1. Type `vi ~/.ssh/id_ed25519` to create or edit the private key file in your `.ssh` directory.
+1. Press `i` to switch to insert mode.
+1. Paste your private key content into the editor.
+1. Press `Esc` to exit insert mode.
+1. Type `:wq` and press `Enter` to save the changes and exit vi.
+
+Add the public key:
+
+1. Type `vi ~/.ssh/id_ed25519.pub` to create or edit the public key file in your `.ssh` directory. Again, adjust the filename as necessary.
+1. Press `i` to switch to insert mode.
+1. Paste your public key content into the editor.
+1. Press `Esc` to exit insert mode.
+1. Type `:wq` and press `Enter` to save the changes and exit vi.
+
+Execute the following commands:
+
+```bash
+chmod 600 ~/.ssh/id_ed25519
+chmod 644 ~/.ssh/id_ed25519.pub
+```
+
 ### Install Dependencies and `jobdone-nexus-cli`
 
 Run the following commands to clean up your package lists, update your system, install necessary packages like `curl`, and download and install the `jobdone-nexus-cli`:
@@ -27,7 +59,7 @@ When executing the `jobdone-nexus-cli install` command, specify the following pa
 ```bash
 jobdone-nexus-cli install \
   --hostname "<hostname>" \
-  --argocd-git-repo-url "<argocd-git-repo-url>" \
+  --argocd_repo_url "<argocda-repo-url>" \
   --argocd-app-path "<argocd-app-path>" \
   --hcp-client-id "<hcp-client-id>" \
   --hcp-client-id-secret "<hcp-client-id-secret>" \

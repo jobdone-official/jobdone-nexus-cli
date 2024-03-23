@@ -1,0 +1,241 @@
+#!/bin/bash
+
+# Check if the first argument is "install"
+if [ "$1" != "install" ]; then
+    echo "Usage: $0 install --hostname <hostname> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    exit 1
+fi
+shift # Remove the 'install' argument, leaving only the named parameters
+
+cat << "EOF"
+
+       _       _     _____                     _   _                        _____ _      _____ 
+      | |     | |   |  __ \                   | \ | |                      / ____| |    |_   _|
+      | | ___ | |__ | |  | | ___  _ __   ___  |  \| | _____  ___   _ ___  | |    | |      | |  
+  _   | |/ _ \| '_ \| |  | |/ _ \| '_ \ / _ \ | . ` |/ _ \ \/ / | | / __| | |    | |      | |  
+ | |__| | (_) | |_) | |__| | (_) | | | |  __/ | |\  |  __/>  <| |_| \__ \ | |____| |____ _| |_ 
+  \____/ \___/|_.__/|_____/ \___/|_| |_|\___| |_| \_|\___/_/\_\\__,_|___/  \_____|______|_____|
+
+
+EOF
+
+# Initialize variables
+hostname=""
+docker_server=""
+docker_username=""
+docker_password=""
+docker_email=""
+trmm_mesh_agent=""
+trmm_api_url=""
+trmm_client_id=""
+trmm_site_id=""
+trmm_auth_key=""
+zerotier_id=""
+static_ip=""
+gateway=""
+netmask=""
+dns=""
+
+# Parse named arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --hostname) hostname="$2"; shift ;;
+        --docker-server) docker_server="$2"; shift ;;
+        --docker-username) docker_username="$2"; shift ;;
+        --docker-password) docker_password="$2"; shift ;;
+        --docker-email) docker_email="$2"; shift ;;
+        --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
+        --trmm-api-url) trmm_api_url="$2"; shift ;;
+        --trmm-client-id) trmm_client_id="$2"; shift ;;
+        --trmm-site-id) trmm_site_id="$2"; shift ;;
+        --trmm-auth-key) trmm_auth_key="$2"; shift ;;
+        --zerotier-id) zerotier_id="$2"; shift ;;
+        --static-ip) static_ip="$2"; shift ;;
+        --gateway) gateway="$2"; shift ;;
+        --netmask) netmask="$2"; shift ;;
+        --dns) dns="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+# Check if variables are set
+# optional params:
+# - zerotier_id
+# - static_ip
+# - gateway
+# - netmask
+# - dns
+if [ -z "$hostname" ] || \
+    [ -z "$docker_server" ] || \
+    [ -z "$docker_username" ] || \
+    [ -z "$docker_password" ] || \
+    [ -z "$docker_email" ] || \
+    [ -z "$hcp_client_id" ] || \
+    [ -z "$hcp_client_id_secret" ] || \
+    [ -z "$hcp_org_id" ] || \
+    [ -z "$hcp_project_id" ] || \
+    [ -z "$trmm_mesh_agent" ] || \
+    [ -z "$trmm_api_url" ] || \
+    [ -z "$trmm_client_id" ] || \
+    [ -z "$trmm_site_id" ] || \
+    [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    exit 1
+fi
+# Define log file with timestamp
+log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
+
+# Function to log messages with levels
+log() {
+    local level=$1
+    local message=$2
+    local prefix=""
+    case $level in
+        INFO) prefix="\e[34mℹ️ [INFO]";;  # Blue
+        WARN) prefix="\e[33m⚠️ [WARN]";;  # Yellow
+        ERROR) prefix="\e[31m❌ [ERROR]";; # Red
+        *) prefix="\e[0m📘";;             # Default
+    esac
+    echo -e "$prefix [$(date +%Y-%m-%dT%H:%M:%S)] - $message\e[0m" | tee -a $log_file
+}
+
+# log params
+echo "hostname: $hostname"
+echo "docker_server: $docker_server"
+echo "zerotier_id: $zerotier_id"
+echo "static_ip: $static_ip"
+echo "gateway: $gateway"
+echo "netmask: $netmask"
+echo "dns: $dns"
+
+# check if this script is running with sudo
+if [ -z "$SUDO_USER" ]; then
+    log ERROR "Please run this script with sudo."
+    exit 1
+fi
+
+# set timezone to UTC
+log INFO "Setting timezone to UTC..."
+sudo timedatectl set-timezone UTC || { log ERROR "Failed to set timezone to UTC."; exit 1; }
+log INFO "Timezone set to UTC."
+
+# set the hostname if it's provided
+if [ -n "$hostname" ]; then
+    log INFO "Setting hostname to $hostname..."
+    sudo hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
+    # change /etc/hosts
+    sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
+    log INFO "Hostname set to $hostname."
+fi
+
+# regenerate machine ID
+log INFO "Regenerating machine ID..."
+sudo rm -f /etc/machine-id
+sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
+log INFO "Machine ID regenerated successfully."
+
+# install basic packages
+log INFO "Installing basic packages..."
+sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
+sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
+sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux iperf3 || { log ERROR "Failed to install basic packages."; exit 1; }
+log INFO "Basic packages installed successfully."
+
+# zerotier (optional)
+if [ -n "$zerotier_id" ]; then
+    log INFO "Setting up ZeroTier..."
+    if ! zerotier-cli -v &> /dev/null; then
+        curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
+        sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
+        log INFO "ZeroTier setup complete."
+    else
+        log WARN "ZeroTier is already installed."
+    fi
+else
+    log WARN "ZeroTier ID is not provided. Skipping ZeroTier setup."
+fi
+
+# install docker
+if ! docker -v &> /dev/null; then
+    log INFO "Installing Docker..."
+    # check if this server is debian
+    if [ -f /etc/debian_version ]; then
+        log INFO "Detected Debian-based system."
+        # https://docs.docker.com/engine/install/debian/#install-using-the-repository
+
+        # Add Docker's official GPG key:
+        sudo apt-get update
+        sudo apt-get install ca-certificates curl
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+        # Add the repository to Apt sources:
+        echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+
+        # Install Docker
+        sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    # else if ubuntu
+    elif [ -f /etc/lsb-release ]; then
+        log INFO "Detected Ubuntu-based system."
+        # https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository
+
+        # Add Docker's official GPG key:
+        sudo apt-get update
+        sudo apt-get install ca-certificates curl
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+        # Add the repository to Apt sources:
+        echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+
+        # Install Docker
+        sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    else
+        log ERROR "Unsupported OS. Only Debian and Ubuntu are supported."
+        exit 1
+    fi
+
+    log INFO "Docker installed successfully."
+else
+    log WARN "Docker is already installed."
+fi
+
+# if docker is installed, login to the custom container registry
+if docker -v &> /dev/null; then
+    log INFO "Logging in to the Docker registry..."
+    echo "$docker_password" | docker login $docker_server -u $docker_username --password-stdin || { log ERROR "Failed to login to the Docker registry."; exit 1; }
+    log INFO "Logged in to the Docker registry."
+fi
+
+# tacticalrmm agent
+if [ ! -f /usr/local/bin/rmmagent ]; then
+    log INFO "Installing TacticalRMM agent..."
+    wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh || { log ERROR "Failed to download TacticalRMM script."; exit 1; }
+    sudo chmod +x rmmagent-linux.sh
+    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server || { log ERROR "Failed to install TacticalRMM agent."; exit 1; }
+    log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
+else
+    log WARN "TacticalRMM agent is already installed."
+fi
+
+log INFO "JobDone Nexus Installation complete!"
+
+# ask for reboot
+read -p "Reboot now? (yes/no): " REBOOT_CHOICE
+if [[ "$REBOOT_CHOICE" == "yes" ]]; then
+    log INFO "Rebooting..."
+    reboot
+else
+    log INFO "Reboot skipped."
+fi

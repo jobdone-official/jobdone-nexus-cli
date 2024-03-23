@@ -1,10 +1,8 @@
 #!/bin/bash
 
-
-
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --argocd-repo-url <argocd_repo_url> --argocd-app-path <argocd_app_path> --argocd-private-ssh-key-path <argocd_private_ssh_key_path> --hcp-client-id <hcp_client_id> --hcp-client-id-secret <hcp_client_id_secret> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -23,6 +21,7 @@ EOF
 
 # Initialize variables
 hostname=""
+k3s_zerotier_ip=""
 docker_server=""
 docker_username=""
 docker_password=""
@@ -32,7 +31,6 @@ trmm_api_url=""
 trmm_client_id=""
 trmm_site_id=""
 trmm_auth_key=""
-zerotier_id=""
 static_ip=""
 gateway=""
 netmask=""
@@ -42,6 +40,7 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
+        --k3s-zerotier-ip) k3s_zerotier_ip="$2"; shift ;;
         --docker-server) docker_server="$2"; shift ;;
         --docker-username) docker_username="$2"; shift ;;
         --docker-password) docker_password="$2"; shift ;;
@@ -51,7 +50,6 @@ while [[ "$#" -gt 0 ]]; do
         --trmm-client-id) trmm_client_id="$2"; shift ;;
         --trmm-site-id) trmm_site_id="$2"; shift ;;
         --trmm-auth-key) trmm_auth_key="$2"; shift ;;
-        --zerotier-id) zerotier_id="$2"; shift ;;
         --static-ip) static_ip="$2"; shift ;;
         --gateway) gateway="$2"; shift ;;
         --netmask) netmask="$2"; shift ;;
@@ -63,12 +61,12 @@ done
 
 # Check if variables are set
 # optional params:
-# - zerotier_id
 # - static_ip
 # - gateway
 # - netmask
 # - dns
 if [ -z "$hostname" ] || \
+    [ -z "$k3s_zerotier_ip" ] || \
     [ -z "$docker_server" ] || \
     [ -z "$docker_username" ] || \
     [ -z "$docker_password" ] || \
@@ -82,7 +80,7 @@ if [ -z "$hostname" ] || \
     [ -z "$trmm_client_id" ] || \
     [ -z "$trmm_site_id" ] || \
     [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --hcp-client-id <hcp_client_id> --hcp-org-id <hcp_org_id> --hcp-project-id <hcp_project_id> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --zerotier-id <zerotier_id> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --docker-server <docker_server> --docker-username <docker_username> --docker-password <docker_password> --docker-email <docker_email> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 # Define log file with timestamp
@@ -104,16 +102,24 @@ log() {
 
 # log params
 echo "hostname: $hostname"
+echo "k3s_zerotier_ip: $k3s_zerotier_ip"
 echo "docker_server: $docker_server"
-echo "zerotier_id: $zerotier_id"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
 echo "dns: $dns"
 
-# check if this script is running with sudo
-if [ -z "$SUDO_USER" ]; then
-    log ERROR "Please run this script with sudo."
+# Check if the script is not being run as root
+if [ "$(id -u)" = "0" ]; then
+   echo "This script should not be run as root."
+   exit 1
+fi
+
+# Determine the invoker's home directory
+if [ ! -z "$SUDO_USER" ]; then
+    INVOKER_HOME=$(getent passwd $SUDO_USER | cut -d: -f6)
+else
+    echo "This script requires sudo."
     exit 1
 fi
 
@@ -141,21 +147,106 @@ log INFO "Machine ID regenerated successfully."
 log INFO "Installing basic packages..."
 sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
 sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
-sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux || { log ERROR "Failed to install basic packages."; exit 1; }
+sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux iperf3 || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
-# zerotier (optional)
-if [ -n "$zerotier_id" ]; then
-    log INFO "Setting up ZeroTier..."
-    if ! zerotier-cli -v &> /dev/null; then
-        curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
-        sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
-        log INFO "ZeroTier setup complete."
-    else
-        log WARN "ZeroTier is already installed."
-    fi
+# Ensure root's .ssh directory exists
+SSH_KEY="id_ed25519"
+SSH_KEY_PUB="id_ed25519.pub"
+
+sudo mkdir -p /root/.ssh
+sudo chmod 700 /root/.ssh
+
+# Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$SSH_KEY" ] && [ ! -f "/root/.ssh/$SSH_KEY" ]; then
+    log INFO "Copying SSH private key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$SSH_KEY" "/root/.ssh/$SSH_KEY"
+    sudo chmod 600 "/root/.ssh/$SSH_KEY"
+    sudo chown root:root "/root/.ssh/$SSH_KEY"
+    log INFO "SSH private key copied to root's .ssh directory."
 else
-    log WARN "ZeroTier ID is not provided. Skipping ZeroTier setup."
+    log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+fi
+
+# Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$SSH_KEY_PUB" ] && [ ! -f "/root/.ssh/$SSH_KEY_PUB" ]; then
+    log INFO "Copying SSH public key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$SSH_KEY_PUB" "/root/.ssh/$SSH_KEY_PUB"
+    sudo chmod 644 "/root/.ssh/$SSH_KEY_PUB"
+    sudo chown root:root "/root/.ssh/$SSH_KEY_PUB"
+    log INFO "SSH public key copied to root's .ssh directory."
+else
+    log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+fi
+
+check_k3s_ready() {
+    while true; do
+        if kubectl get nodes &> /dev/null; then
+            log INFO "k3s is ready!"
+            break
+        else
+            log INFO "Waiting for k3s to be ready..."
+            sleep 5
+        fi
+    done
+}
+
+# k3s
+if ! k3s --version &> /dev/null; then
+    log INFO "Installing k3s without traefik..."
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $k3s_zerotier_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+
+    # Copy k3s.yaml to root's .kube directory and ensure directory exists
+    log INFO "Copying k3s.yaml to root's .kube directory..."
+    sudo mkdir -p /root/.kube
+    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+    sudo chmod 0644 /root/.kube/config
+
+    # Dynamic user home directory for kube/config
+    log INFO "Ensuring .kube directory exists in the sudo (non-root) user's home and copying the config..."
+    # Ensures the .kube directory exists in the sudo (non-root) user's home and copy the config
+    sudo mkdir -p "$INVOKER_HOME/.kube"
+    sudo cp /etc/rancher/k3s/k3s.yaml "$INVOKER_HOME/.kube/config"
+    sudo chmod 0644 "$INVOKER_HOME/.kube/config"
+    sudo chown $SUDO_USER:$SUDO_USER "$INVOKER_HOME/.kube/config"
+
+    sleep 10
+    log INFO "k3s installed successfully."
+
+    check_k3s_ready
+else
+    log WARN "k3s is already installed."
+fi
+
+# create jobdone-nexus namespace
+if ! kubectl get namespace jobdone-nexus &> /dev/null; then
+    log INFO "Creating jobdone-nexus namespace..."
+    kubectl create namespace jobdone-nexus || { log ERROR "Failed to create jobdone-nexus namespace."; exit 1;}
+    log INFO "jobdone-nexus namespace created successfully."
+else
+    log WARN "jobdone-nexus namespace already exists."
+fi
+
+# eget
+if ! eget --version &> /dev/null; then
+    log INFO "Installing eget..."
+    download_url=$(curl https://api.github.com/repos/zyedidia/eget/releases/latest -s | grep linux_amd64 | grep browser_download_url | cut -d '"' -f4)
+    curl -SsL ${download_url} -o /tmp/eget.tar.gz || { log ERROR "Failed to download eget."; exit 1; }
+    tar -xf /tmp/eget.tar.gz --strip-components=1 -C /tmp/ || { log ERROR "Failed to extract eget."; exit 1; }
+    sudo mv /tmp/eget /usr/local/bin/eget || { log ERROR "Failed to move eget to /usr/local/bin."; exit 1; }
+    sudo chmod +x /usr/local/bin/eget || { log ERROR "Failed to make eget executable."; exit 1; }
+    log INFO "eget installed successfully."
+else
+    log WARN "eget is already installed."
+fi
+
+# k9s
+if ! k9s version &> /dev/null; then
+    log INFO "Installing k9s to /usr/local/bin"
+    sudo /usr/local/bin/eget -q --to /usr/local/bin derailed/k9s --asset=tar.gz --asset=^sbom || { log ERROR "Failed to install k9s."; exit 1; }
+    log INFO "k9s installed successfully."
+else
+    log WARN "k9s is already installed."
 fi
 
 # tacticalrmm agent
@@ -167,21 +258,6 @@ if [ ! -f /usr/local/bin/rmmagent ]; then
     log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
 else
     log WARN "TacticalRMM agent is already installed."
-fi
-
-# docker pull secret
-# check if secret with the name docker-pull-secret-1 already exists
-if ! kubectl get secret docker-pull-secret-1 &> /dev/null; then
-    log INFO "Creating docker pull secret..."
-    kubectl create secret docker-registry docker-pull-secret-1 \
-    --docker-server="$docker_server" \
-    --docker-username="$docker_username" \
-    --docker-password="$docker_password" \
-    --docker-email="$docker_email" \
-    -n jobdone-nexus || log ERROR "Failed to create docker pull secret."
-    log INFO "Docker pull secret created successfully."
-else
-    log WARN "Docker pull secret already exists."
 fi
 
 log INFO "JobDone Nexus Installation complete!"
