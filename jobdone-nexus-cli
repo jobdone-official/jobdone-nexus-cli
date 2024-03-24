@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -23,7 +23,7 @@ EOF
 hostname=""
 ssh_private_key_name=""
 ssh_public_key_name=""
-k3s_zerotier_ip=""
+zerotier_ip_prefix=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
@@ -42,7 +42,7 @@ while [[ "$#" -gt 0 ]]; do
         --hostname) hostname="$2"; shift ;;
         --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
         --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
-        --k3s-zerotier-ip) k3s_zerotier_ip="$2"; shift ;;
+        --zerotier-ip-prefix) zerotier_ip_prefix="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
@@ -68,13 +68,13 @@ done
 if [ -z "$hostname" ] || \
     [ -z "$ssh_private_key_name" ] || \
     [ -z "$ssh_public_key_name" ] || \
-    [ -z "$k3s_zerotier_ip" ] || \
+    [ -z "$zerotier_ip_prefix" ] || \
     [ -z "$trmm_mesh_agent" ] || \
     [ -z "$trmm_api_url" ] || \
     [ -z "$trmm_client_id" ] || \
     [ -z "$trmm_site_id" ] || \
     [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --k3s-zerotier-ip <k3s_zerotier_ip> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 # Define log file with timestamp
@@ -98,7 +98,7 @@ log() {
 echo "hostname: $hostname"
 echo "ssh_private_key_name: $ssh_private_key_name"
 echo "ssh_public_key_name: $ssh_public_key_name"
-echo "k3s_zerotier_ip: $k3s_zerotier_ip"
+echo "zerotier_ip_prefix: $zerotier_ip_prefix"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
@@ -118,6 +118,13 @@ else
     exit 1
 fi
 
+# check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
+zerotier_ip=$(ip -4 addr show | grep "inet" | grep "zt" | grep "$zerotier_ip_prefix" | awk '{print $2}' | cut -d'/' -f1)
+if [ -z "$zerotier_ip" ]; then
+    log ERROR "No ZeroTier IP found with the prefix $zerotier_ip_prefix."
+    exit 1
+fi
+
 # set timezone to UTC
 log INFO "Setting timezone to UTC..."
 sudo timedatectl set-timezone UTC || { log ERROR "Failed to set timezone to UTC."; exit 1; }
@@ -134,7 +141,7 @@ fi
 
 # regenerate machine ID
 log INFO "Regenerating machine ID..."
-sudo rm -f /etc/machine-id
+sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
 sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
 log INFO "Machine ID regenerated successfully."
 
@@ -186,7 +193,7 @@ check_k3s_ready() {
 # k3s
 if ! k3s --version &> /dev/null; then
     log INFO "Installing k3s without traefik..."
-    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $k3s_zerotier_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $zerotier_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
 
     # Copy k3s.yaml to root's .kube directory and ensure directory exists
     log INFO "Copying k3s.yaml to root's .kube directory..."
