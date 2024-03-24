@@ -118,7 +118,7 @@ else
     exit 1
 fi
 
-# check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
+# Check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
 zerotier_ip=$(ip -4 addr show | grep "inet" | grep "zt" | grep "$zerotier_ip_prefix" | awk '{print $2}' | cut -d'/' -f1)
 if [ -z "$zerotier_ip" ]; then
     log ERROR "No ZeroTier IP found with the prefix $zerotier_ip_prefix."
@@ -257,6 +257,14 @@ if [ ! -f /usr/local/bin/rmmagent ]; then
 else
     log WARN "TacticalRMM agent is already installed."
 fi
+
+# show /etc/rancher/k3s/k3s.yaml with instructions
+k3s_argocd_file_name="${zerotier_ip}-${hostname}.yaml"
+echo -e "\n\n"
+cat /etc/rancher/k3s/k3s.yaml
+echo -e "\n\n"
+log INFO "Copy the content of the k3s.yaml file to the ArgoCD Manager node and name it: $k3s_argocd_file_name"
+echo -e "\n\n"
 
 log INFO "JobDone Nexus Installation complete!"
 
