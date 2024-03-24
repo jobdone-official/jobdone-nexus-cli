@@ -4,9 +4,41 @@
 
 This section guides you through the installation process of `jobdone-nexus-cli`. Begin by ensuring you have root access, as the installation requires elevated permissions.
 
+### Prerequisites
+
+Execute the following commands:
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+```
+
+Add the private key:
+
+1. Type `vi ~/.ssh/id_ed25519` to create or edit the private key file in your `.ssh` directory.
+1. Press `i` to switch to insert mode.
+1. Paste your private key content into the editor.
+1. Press `Esc` to exit insert mode.
+1. Type `:wq` and press `Enter` to save the changes and exit vi.
+
+Add the public key:
+
+1. Type `vi ~/.ssh/id_ed25519.pub` to create or edit the public key file in your `.ssh` directory. Again, adjust the filename as necessary.
+1. Press `i` to switch to insert mode.
+1. Paste your public key content into the editor.
+1. Press `Esc` to exit insert mode.
+1. Type `:wq` and press `Enter` to save the changes and exit vi.
+
+Execute the following commands:
+
+```bash
+chmod 600 ~/.ssh/id_ed25519
+chmod 644 ~/.ssh/id_ed25519.pub
+```
+
 ### Install Dependencies and `jobdone-nexus-cli`
 
-Run the following commands to clean up your package lists, update your system, install `curl`, and finally, download and install the `jobdone-nexus-cli`:
+Run the following commands to clean up your package lists, update your system, install necessary packages like `curl`, and download and install the `jobdone-nexus-cli`:
 
 ```bash
 sudo apt clean && sudo apt autoclean && sudo apt update && sudo apt upgrade -y
@@ -18,94 +50,38 @@ sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/
 
 ## Usage 🔍
 
-Please be aware that the `trmm-auth-key` expires and will need to be renewed periodically.
+To install and configure the jobdone-nexus-cli, use the following command format. This command includes mandatory parameters for setting up the hostname, ZeroTier IP prefix, Tactical RMM mesh agent, API URL, client ID, site ID, and auth key. Optional network configuration parameters are also available if you're customizing network settings during the installation.
 
-### Command Parameters
+```bash
+./jobdone-nexus-cli install \
+  --hostname "<hostname>" \
+  --ssh-private-key-name "<ssh_private_key_name>" \
+  --ssh-public-key-name "<ssh_public_key_name>" \
+  --zerotier-ip-prefix "<zerotier_ip_prefix>" \
+  --trmm-mesh-agent "<trmm_mesh_agent>" \
+  --trmm-api-url "<trmm_api_url>" \
+  --trmm-client-id <trmm_client_id> \
+  --trmm-site-id <trmm_site_id> \
+  --trmm-auth-key "<trmm_auth_key>" \
+  --static-ip "<static_ip>" \
+  --gateway "<gateway>" \
+  --netmask "<netmask>" \
+  --dns "<dns>"
+```
 
-When executing the `jobdone-nexus-cli install` command, you'll need to specify several parameters to tailor the installation to your environment:
+### Parameters Detail
 
-- **Without network (optional):**
+- `--hostname`: The hostname for the system being installed.
+- `--ssh-private-key-name`: The filename of the SSH private key to be used for secure connections.
+- `--ssh-public-key-name`: The filename of the SSH public key corresponding to the private key.
+- `--zerotier-ip-prefix`: The IP prefix for ZeroTier network configurations.
+- `--trmm-mesh-agent`, `--trmm-api-url`, `--trmm-client-id`, `--trmm-site-id`, `--trmm-auth-key`: Parameters required for Tactical RMM integration.
+- `--static-ip`, `--gateway`, `--netmask`, `--dns`: Optional parameters for static IP network configuration.
 
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "<hostname>" \
-    --ssh-public-key "<SSH-Public-Key>" \
-    --zerotier-id "<zerotier-id>" \
-    --argocd-git-repo-url "argocd-git-repo-url" \
-    --argocd-git-token "argocd-git-token" \
-    --argocd-git-directory "argocd-git-directory" \
-    --argocd-project "argocd-project" \
-    --argocd-app-url "argocd-app-url" \
-    --trmm-mesh-agent "<trmm-mesh-agent>" \
-    --trmm-api-url "<trmm-api-url>" \
-    --trmm-client-id <trmm-client-id> \
-    --trmm-site-id <trmm-site-id> \
-    --trmm-auth-key <"trmm-auth-key">
-  ```
+### Important Notes
 
-- **With network:**
+- The script now checks and installs additional utilities such as `eget` for downloading executable binaries and `k9s` for Kubernetes cluster management.
+- Kubernetes (`k3s`) installation is integrated into the script with specific configuration adjustments for ZeroTier networks.
+- TacticalRMM agent installation steps are included, showcasing the script's readiness for IT management and monitoring integration.
 
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "<hostname>" \
-    --ssh-public-key "<SSH-Public-Key>" \
-    --zerotier-id "<zerotier-id>" \
-    --argocd-git-repo-url "argocd-git-repo-url" \
-    --argocd-git-token "argocd-git-token" \
-    --argocd-git-directory "argocd-git-directory" \
-    --argocd-project "argocd-project" \
-    --argocd-app-url "argocd-app-url" \
-    --trmm-mesh-agent "<trmm-mesh-agent>" \
-    --trmm-api-url "<trmm-api-url>" \
-    --trmm-client-id <trmm-client-id> \
-    --trmm-site-id <trmm-site-id> \
-    --trmm-auth-key "<trmm-auth-key>" \
-    --static_ip <static_ip> \
-    --gateway <gateway> \
-    --netmask <netmask> \
-    --dns <dns>
-  ```
-
-#### Examples
-
-- **Without network (optional):**
-
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "nexus-server-1" \
-    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
-    --zerotier-id "e5cd7a82840b9b7e" \
-    --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-git-token "token123" \
-    --argocd-git-directory "directory-name" \
-    --argocd-project "project-name" \
-    --argocd-app-url "https://git.example.com/app.git" \
-    --trmm-mesh-agent "meshagent.example.com" \
-    --trmm-api-url "https://api.trmm.example.com" \
-    --trmm-client-id 1 \
-    --trmm-site-id 1 \
-    --trmm-auth-key "authkey789"
-  ```
-
-- **With network:**
-
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "nexus-server-1" \
-    --ssh-public-key "ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABAQD3d3x... your key continues" \
-    --zerotier-id "e5cd7a82840b9b7e" \
-    --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-git-token "token123" \
-    --argocd-git-directory "directory-name" \
-    --argocd-project "project-name" \
-    --argocd-app-url "https://git.example.com/app.git" \
-    --trmm-mesh-agent "meshagent.example.com" \
-    --trmm-api-url "https://api.trmm.example.com" \
-    --trmm-client-id 1 \
-    --trmm-site-id 1 \
-    --trmm-auth-key "authkey789" \
-    --static_ip "192.168.1.100" \
-    --gateway "192.168.1.1" \
-    --netmask "255.255.255.0" \
-    --dns "8.8.8.8"
-  ```
+After executing the installation command, follow the prompts to complete the setup. The script includes detailed logging and will suggest a reboot at the end of the installation to apply all configurations.

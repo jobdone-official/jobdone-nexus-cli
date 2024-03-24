@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# Inspired by: https://github.com/openreplay/openreplay/blob/main/scripts/helmcharts/init.sh
-# Inspired by: https://github.com/openreplay/openreplay/blob/main/scripts/helmcharts/openreplay-cli
-
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+    echo "Usage: $0 install --hostname <hostname> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -24,19 +21,16 @@ EOF
 
 # Initialize variables
 hostname=""
-ssh_public_key=""
-zerotier_id=""
-argocd_git_repo_url=""
-argocd_git_token=""
-argocd_git_directory=""
-argocd_project=""
-argocd_app_url=""
-argocd_app_name=""
+ssh_private_key_name=""
+ssh_public_key_name=""
+zerotier_ip_prefix=""
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
 trmm_site_id=""
 trmm_auth_key=""
+
+# can be enabled with the addon
 static_ip=""
 gateway=""
 netmask=""
@@ -46,19 +40,16 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
-        --ssh-public-key) ssh_public_key="$2"; shift ;;
-        --zerotier-id) zerotier_id="$2"; shift ;;
-        --argocd-git-repo-url) argocd_git_repo_url="$2"; shift ;;
-        --argocd-git-token) argocd_git_token="$2"; shift ;;
-        --argocd-git-directory) argocd_git_directory="$2"; shift ;;
-        --argocd-project) argocd_project="$2"; shift ;;
-        --argocd-app-url) argocd_app_url="$2"; shift ;;
-        --argocd-app-name) argocd_app_name="$2"; shift ;;
+        --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
+        --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
+        --zerotier-ip-prefix) zerotier_ip_prefix="$2"; shift ;;
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
         --trmm-site-id) trmm_site_id="$2"; shift ;;
         --trmm-auth-key) trmm_auth_key="$2"; shift ;;
+
+        # can be enabled with the addon
         --static-ip) static_ip="$2"; shift ;;
         --gateway) gateway="$2"; shift ;;
         --netmask) netmask="$2"; shift ;;
@@ -69,11 +60,23 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-if [ -z "$hostname" ] || [ -z "$ssh_public_key" ] || [ -z "$argocd_git_repo_url" ] || [ -z "$argocd_git_token" ] || [ -z "$argocd_git_directory" ] || [ -z "$argocd_project" ] || [ -z "$argocd_app_url" ] || [ -z "$argocd_app_name" ] || [ -z "$zerotier_id" ] || [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-public-key <ssh_public_key> --zerotier-id <zerotier_id> --argocd-git-repo-url <argocd_git_repo_url> --argocd-git-token <argocd_git_token> --argocd-git-directory <argocd_git_directory> --argocd-project <argocd_project> --argocd-app-url <argocd_app_url> --argocd-app-name <argocd_app_name> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
+# addon params:
+# - static_ip
+# - gateway
+# - netmask
+# - dns
+if [ -z "$hostname" ] || \
+    [ -z "$ssh_private_key_name" ] || \
+    [ -z "$ssh_public_key_name" ] || \
+    [ -z "$zerotier_ip_prefix" ] || \
+    [ -z "$trmm_mesh_agent" ] || \
+    [ -z "$trmm_api_url" ] || \
+    [ -z "$trmm_client_id" ] || \
+    [ -z "$trmm_site_id" ] || \
+    [ -z "$trmm_auth_key" ]; then
+    echo "Usage: $0 install --hostname <hostname> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> --static-ip <static_ip> --gateway <gateway> --netmask <netmask> --dns <dns>"
     exit 1
 fi
-
 # Define log file with timestamp
 log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
 
@@ -93,27 +96,32 @@ log() {
 
 # log params
 echo "hostname: $hostname"
-echo "ssh_public_key: $ssh_public_key"
-echo "zerotier_id: $zerotier_id"
-echo "argocd_git_repo_url: $argocd_git_repo_url"
-echo "argocd_git_token: $argocd_git_token"
-echo "argocd_git_directory: $argocd_git_directory"
-echo "argocd_project: $argocd_project"
-echo "argocd_app_url: $argocd_app_url"
-echo "argocd_app_name: $argocd_app_name"
-echo "trmm_mesh_agent: $trmm_mesh_agent"
-echo "trmm_api_url: $trmm_api_url"
-echo "trmm_client_id: $trmm_client_id"
-echo "trmm_site_id: $trmm_site_id"
-echo "trmm_auth_key: $trmm_auth_key"
+echo "ssh_private_key_name: $ssh_private_key_name"
+echo "ssh_public_key_name: $ssh_public_key_name"
+echo "zerotier_ip_prefix: $zerotier_ip_prefix"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
 echo "dns: $dns"
 
-# check if this script is running with sudo
-if [ -z "$SUDO_USER" ]; then
-    log ERROR "Please run this script with sudo."
+# Check if the script is not being run as root
+if [ "$(id -u)" = "0" ]; then
+   echo "This script should not be run as root."
+   exit 1
+fi
+
+# Determine the invoker's home directory
+if [ ! -z "$SUDO_USER" ]; then
+    INVOKER_HOME=$(getent passwd $SUDO_USER | cut -d: -f6)
+else
+    echo "This script requires sudo."
+    exit 1
+fi
+
+# check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
+zerotier_ip=$(ip -4 addr show | grep "inet" | grep "zt" | grep "$zerotier_ip_prefix" | awk '{print $2}' | cut -d'/' -f1)
+if [ -z "$zerotier_ip" ]; then
+    log ERROR "No ZeroTier IP found with the prefix $zerotier_ip_prefix."
     exit 1
 fi
 
@@ -133,7 +141,7 @@ fi
 
 # regenerate machine ID
 log INFO "Regenerating machine ID..."
-sudo rm -f /etc/machine-id
+sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
 sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
 log INFO "Machine ID regenerated successfully."
 
@@ -141,17 +149,33 @@ log INFO "Machine ID regenerated successfully."
 log INFO "Installing basic packages..."
 sudo apt update || { log ERROR "Failed to update apt."; exit 1; }
 sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
-sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu network-manager || { log ERROR "Failed to install basic packages."; exit 1; }
+sudo apt install -y curl sudo unzip vim htop git net-tools wget ncdu tmux || { log ERROR "Failed to install basic packages."; exit 1; }
 log INFO "Basic packages installed successfully."
 
-# add ssh public key
-if [ -n "$ssh_public_key" ]; then
-    log "Adding SSH public key to root's authorized_keys..."
-    sudo mkdir -p /root/.ssh
-    echo "$ssh_public_key" >> /root/.ssh/authorized_keys
-    sudo chmod 600 /root/.ssh/authorized_keys
-    sudo chown root:root /root/.ssh/authorized_keys
-    log "SSH public key added successfully."
+# Ensure root's .ssh directory exists
+sudo mkdir -p /root/.ssh
+sudo chmod 700 /root/.ssh
+
+# Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$ssh_private_key_name" ] && [ ! -f "/root/.ssh/$ssh_private_key_name" ]; then
+    log INFO "Copying SSH private key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_private_key_name" "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to copy SSH private key to root's .ssh directory."; exit 1; }
+    sudo chmod 600 "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set permissions on SSH private key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set ownership on SSH private key."; exit 1; }
+    log INFO "SSH private key copied to root's .ssh directory."
+else
+    log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+fi
+
+# Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$ssh_public_key_name" ] && [ ! -f "/root/.ssh/$ssh_public_key_name" ]; then
+    log INFO "Copying SSH public key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_public_key_name" "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to copy SSH public key to root's .ssh directory."; exit 1; }
+    sudo chmod 644 "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set permissions on SSH public key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set ownership on SSH public key."; exit 1; }
+    log INFO "SSH public key copied to root's .ssh directory."
+else
+    log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
 fi
 
 check_k3s_ready() {
@@ -169,25 +193,22 @@ check_k3s_ready() {
 # k3s
 if ! k3s --version &> /dev/null; then
     log INFO "Installing k3s without traefik..."
-    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $zerotier_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+
     # Copy k3s.yaml to root's .kube directory and ensure directory exists
-    sudo mkdir -p /root/.kube
-    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
-    sudo chmod 0644 /root/.kube/config
+    log INFO "Copying k3s.yaml to root's .kube directory..."
+    sudo mkdir -p /root/.kube || { log ERROR "Failed to create .kube directory in root's home."; exit 1; }
+    sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config || { log ERROR "Failed to copy k3s.yaml to root's .kube directory."; exit 1; }
+    sudo chmod 0644 /root/.kube/config || { log ERROR "Failed to set permissions on k3s.yaml."; exit 1; }
 
-    # If the script is run with sudo (indicating a non-root user invoked it)
-    if [ ! -z "$SUDO_USER" ]; then
-        # Determine non-root user's home directory dynamically
-        non_root_user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-        
-        # Ensure the .kube directory exists in the non-root user's home and copy the config
-        sudo mkdir -p "$non_root_user_home/.kube"
-        sudo cp /etc/rancher/k3s/k3s.yaml "$non_root_user_home/.kube/config"
-        sudo chmod 0644 "$non_root_user_home/.kube/config"
-        sudo chown $SUDO_USER:$SUDO_USER "$non_root_user_home/.kube/config"
-    fi
+    # Dynamic user home directory for kube/config
+    log INFO "Ensuring .kube directory exists in the sudo (non-root) user's home and copying the config..."
+    # Ensures the .kube directory exists in the sudo (non-root) user's home and copy the config
+    sudo mkdir -p "$INVOKER_HOME/.kube" || { log ERROR "Failed to create .kube directory in the sudo (non-root) user's home."; exit 1; }
+    sudo cp /etc/rancher/k3s/k3s.yaml "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to copy k3s.yaml to the sudo (non-root) user's .kube directory."; exit 1; }
+    sudo chmod 0644 "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to set permissions on k3s.yaml in the sudo (non-root) user's .kube directory."; exit 1; }
+    sudo chown $SUDO_USER:$SUDO_USER "$INVOKER_HOME/.kube/config" || { log ERROR "Failed to set ownership on k3s.yaml in the sudo (non-root) user's .kube directory."; exit 1; }
 
-    sleep 10
     log INFO "k3s installed successfully."
 
     check_k3s_ready
@@ -195,87 +216,13 @@ else
     log WARN "k3s is already installed."
 fi
 
-# argocd autopilot
-if ! argocd-autopilot version &> /dev/null; then
-    log INFO "Installing ArgoCD Autopilot..."
-    VERSION=$(curl --silent "https://api.github.com/repos/argoproj-labs/argocd-autopilot/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
-    curl -L --output - "https://github.com/argoproj-labs/argocd-autopilot/releases/download/$VERSION/argocd-autopilot-linux-amd64.tar.gz" | tar zx
-    mv ./argocd-autopilot-* /usr/local/bin/argocd-autopilot
-    chmod +x /usr/local/bin/argocd-autopilot
-    log INFO "ArgoCD Autopilot installed successfully."
+# create jobdone-nexus namespace
+if ! kubectl get namespace jobdone-nexus &> /dev/null; then
+    log INFO "Creating jobdone-nexus namespace..."
+    kubectl create namespace jobdone-nexus || { log ERROR "Failed to create jobdone-nexus namespace."; exit 1;}
+    log INFO "jobdone-nexus namespace created successfully."
 else
-    log WARN "ArgoCD Autopilot is already installed."
-fi
-
-# argocd application
-## check if there is already a project with the same name
-
-## continue only if all enviroment variables are set
-
-if [ -n "$argocd_git_repo_url" ] && [ -n "$argocd_git_token" ] && [ -n "$argocd_git_directory" ] && [ -n "$argocd_project" ] && [ -n "$argocd_app_url" ] && [ -n "$argocd_app_name" ]; then
-    export GIT_TOKEN=$argocd_git_token
-
-    # check if there is a trailing slash in the git repo url, if yes, remove it
-    if [[ $argocd_git_repo_url == */ ]]; then
-        argocd_git_repo_url=${argocd_git_repo_url%?}
-    fi
-
-    # check if there is a leading slash in the git directory, if yes, remove it
-    if [[ $argocd_git_directory == /* ]]; then
-        argocd_git_directory=${argocd_git_directory#?}
-    fi
-
-    export GIT_REPO="$argocd_git_repo_url/$argocd_git_directory"
-    log INFO "GIT_REPO: $GIT_REPO"
-
-    log INFO "GIT_TOKEN and GIT_REPO environment variables are set."
-
-    log INFO "Bootstrapping the ArgoCD Autopilot repo..."
-
-    # Attempt to bootstrap the ArgoCD Autopilot repo, capturing both stdout and stderr
-    bootstrap_output=$(argocd-autopilot repo bootstrap 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "ArgoCD Autopilot repo bootstrapped successfully."
-    else
-        # Check if the error is because the repo already exists
-        if echo "$bootstrap_output" | grep -q "folder bootstrap already exist"; then
-            log WARN "ArgoCD Autopilot repo already bootstrapped. Continuing..."
-        else
-            # Handle other errors
-            log ERROR "Failed to bootstrap the ArgoCD Autopilot repo: $bootstrap_output"
-            exit 1
-        fi
-    fi
-
-    log INFO "Creating project $argocd_project..."
-    # Attempt to create the ArgoCD Autopilot project, capturing both stdout and stderr
-    project_create_output=$(argocd-autopilot project create $argocd_project 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "Project '$argocd_project' created successfully."
-    else
-        # Check if the error is because the project already exists
-        if echo "$project_create_output" | grep -q "project '$argocd_project' already exists"; then
-            log WARN "Project '$argocd_project' already exists. Continuing..."
-        else
-            # Handle other errors
-            log ERROR "Failed to create project '$argocd_project': $project_create_output"
-            exit 1
-        fi
-    fi
-
-    # Attempt to create the ArgoCD Autopilot app, capturing both stdout and stderr
-    app_create_output=$(argocd-autopilot app create ${argocd_app_name} --app "$argocd_app_url" -p "$argocd_project" 2>&1)
-
-    if [ $? -eq 0 ]; then
-        log INFO "ArgoCD app $argocd_app_name created successfully."
-    else
-        log ERROR "Failed to create ArgoCD app $argocd_app_name: $app_create_output"
-    fi
-
-else
-    log WARN "Please set the required environment variables to install ArgoCD application."
+    log WARN "jobdone-nexus namespace already exists."
 fi
 
 # eget
@@ -300,16 +247,6 @@ else
     log WARN "k9s is already installed."
 fi
 
-# zerotier
-if ! zerotier-cli -v &> /dev/null; then
-    log INFO "Setting up ZeroTier..."
-    curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
-    sudo zerotier-cli join $zerotier_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
-    log INFO "ZeroTier setup complete."
-else
-    log WARN "ZeroTier is already installed."
-fi
-
 # tacticalrmm agent
 if [ ! -f /usr/local/bin/rmmagent ]; then
     log INFO "Installing TacticalRMM agent..."
@@ -322,53 +259,6 @@ else
 fi
 
 log INFO "JobDone Nexus Installation complete!"
-
-# if network configuration is provided, apply it
-if [ -n "$static_ip" ] && [ -n "$gateway" ] && [ -n "$netmask" ] && [ -n "$dns" ]; then
-    log INFO "Setting up network configuration..."
-    
-    # List all available network interfaces and prompt user to select one
-    log INFO "Identifying available network interfaces..."
-    nmcli device status
-    read -p "Enter the interface name to configure: " INTERFACE_NAME
-
-    CONNECTION_NAME=$(nmcli -t -f UUID,TYPE,DEVICE con show --active | grep "$INTERFACE_NAME" | cut -d':' -f1)
-
-    if [ -z "$CONNECTION_NAME" ]; then
-        log INFO "Selected interface is not active or does not exist."
-        exit 1
-    fi
-
-    TIMESTAMP=$(date +%Y-%m-%dT%H:%M:%S)
-    BACKUP_CONFIG="/tmp/network_config_backup_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
-    nmcli con export "$CONNECTION_NAME" > "$BACKUP_CONFIG"
-    log INFO "Current configuration for $INTERFACE_NAME backed up to $BACKUP_CONFIG"
-
-    # Set static IP
-    nmcli con mod "$CONNECTION_NAME" ipv4.addresses "$static_ip/$netmask" ipv4.gateway "$gateway" ipv4.dns "$dns" ipv4.method manual
-
-    # Restart network connection to apply changes
-    nmcli con down "$CONNECTION_NAME" && nmcli con up "$CONNECTION_NAME"
-
-    # Check for internet connectivity
-    ping -c 4 8.8.8.8 > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        log INFO "Internet connection is up. Static IP set successfully."
-        NEW_CONFIG="/tmp/network_config_new_${CONNECTION_NAME}_${TIMESTAMP}.nmconnection"
-        nmcli con export "$CONNECTION_NAME" > "$NEW_CONFIG"
-        log INFO "New configuration applied. Review changes below:"
-        diff "$BACKUP_CONFIG" "$NEW_CONFIG" || log "No changes were detected."
-    else
-        log WARN "Internet connection failed."
-        read -p "Restore original configuration? (yes/no): " RESTORE_CHOICE
-        if [[ "$RESTORE_CHOICE" == "yes" ]]; then
-            nmcli con load "$BACKUP_CONFIG" && nmcli con up "$CONNECTION_NAME"
-            log WARN "Original configuration restored."
-        else
-            log WARN "Keeping new configuration as per user request."
-        fi
-    fi
-fi
 
 # ask for reboot
 read -p "Reboot now? (yes/no): " REBOOT_CHOICE
