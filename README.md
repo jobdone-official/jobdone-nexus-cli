@@ -9,13 +9,13 @@ This section guides you through the installation process of `jobdone-nexus-cli`.
 Execute the following commands:
 
 ```bash
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
+sudo mkdir -p ~/.ssh
+sudo chmod 700 ~/.ssh
 ```
 
 Add the private key:
 
-1. Type `vi ~/.ssh/id_ed25519` to create or edit the private key file in your `.ssh` directory.
+1. Type `sudo vi ~/.ssh/id_ed25519` to create or edit the private key file in your `.ssh` directory.
 1. Press `i` to switch to insert mode.
 1. Paste your private key content into the editor.
 1. Press `Esc` to exit insert mode.
@@ -23,7 +23,7 @@ Add the private key:
 
 Add the public key:
 
-1. Type `vi ~/.ssh/id_ed25519.pub` to create or edit the public key file in your `.ssh` directory. Again, adjust the filename as necessary.
+1. Type `sudo vi ~/.ssh/id_ed25519.pub` to create or edit the public key file in your `.ssh` directory. Again, adjust the filename as necessary.
 1. Press `i` to switch to insert mode.
 1. Paste your public key content into the editor.
 1. Press `Esc` to exit insert mode.
@@ -32,8 +32,8 @@ Add the public key:
 Execute the following commands:
 
 ```bash
-chmod 600 ~/.ssh/id_ed25519
-chmod 644 ~/.ssh/id_ed25519.pub
+sudo chmod 600 ~/.ssh/id_ed25519
+sudo chmod 644 ~/.ssh/id_ed25519.pub
 ```
 
 ### Install Dependencies and `jobdone-nexus-cli`
@@ -53,7 +53,7 @@ sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/
 To install and configure the jobdone-nexus-cli, use the following command format. This command includes mandatory parameters for setting up the hostname, ZeroTier IP prefix, Tactical RMM mesh agent, API URL, client ID, site ID, and auth key. Optional network configuration parameters are also available if you're customizing network settings during the installation.
 
 ```bash
-./jobdone-nexus-cli install \
+sudo ./jobdone-nexus-cli install \
   --hostname "<hostname>" \
   --ssh-private-key-name "<ssh_private_key_name>" \
   --ssh-public-key-name "<ssh_public_key_name>" \
