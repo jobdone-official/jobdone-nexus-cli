@@ -50,75 +50,38 @@ sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/
 
 ## Usage 🔍
 
-Note: The `trmm-auth-key` and other sensitive parameters may expire or require updating over time. Ensure you maintain these credentials securely and update them as necessary.
-
-### Command Parameters
-
-When executing the `jobdone-nexus-cli install` command, specify the following parameters to tailor the installation to your environment. Include network parameters if configuring network settings during installation:
+To install and configure the jobdone-nexus-cli, use the following command format. This command includes mandatory parameters for setting up the hostname, ZeroTier IP prefix, Tactical RMM mesh agent, API URL, client ID, site ID, and auth key. Optional network configuration parameters are also available if you're customizing network settings during the installation.
 
 ```bash
-jobdone-nexus-cli install \
+./jobdone-nexus-cli install \
   --hostname "<hostname>" \
-  --argocd_repo_url "<argocda-repo-url>" \
-  --argocd-app-path "<argocd-app-path>" \
-  --hcp-client-id "<hcp-client-id>" \
-  --hcp-client-id-secret "<hcp-client-id-secret>" \
-  --hcp-org-id "<hcp-org-id>" \
-  --hcp-project-id "<hcp-project-id>" \
-  --trmm-mesh-agent "<trmm-mesh-agent>" \
-  --trmm-api-url "<trmm-api-url>" \
-  --trmm-client-id <trmm-client-id> \
-  --trmm-site-id <trmm-site-id> \
-  --trmm-auth-key "<trmm-auth-key>" \
-  --zerotier-id "<zerotier-id>" \
+  --ssh-private-key-name "<ssh_private_key_name>" \
+  --ssh-public-key-name "<ssh_public_key_name>" \
+  --zerotier-ip-prefix "<zerotier_ip_prefix>" \
+  --trmm-mesh-agent "<trmm_mesh_agent>" \
+  --trmm-api-url "<trmm_api_url>" \
+  --trmm-client-id <trmm_client_id> \
+  --trmm-site-id <trmm_site_id> \
+  --trmm-auth-key "<trmm_auth_key>" \
   --static-ip "<static_ip>" \
   --gateway "<gateway>" \
   --netmask "<netmask>" \
   --dns "<dns>"
 ```
 
-#### Example Usage
+### Parameters Detail
 
-- **Basic Installation Example** (minimal setup without network configuration):
+- `--hostname`: The hostname for the system being installed.
+- `--ssh-private-key-name`: The filename of the SSH private key to be used for secure connections.
+- `--ssh-public-key-name`: The filename of the SSH public key corresponding to the private key.
+- `--zerotier-ip-prefix`: The IP prefix for ZeroTier network configurations.
+- `--trmm-mesh-agent`, `--trmm-api-url`, `--trmm-client-id`, `--trmm-site-id`, `--trmm-auth-key`: Parameters required for Tactical RMM integration.
+- `--static-ip`, `--gateway`, `--netmask`, `--dns`: Optional parameters for static IP network configuration.
 
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "nexus-server-1" \
-    --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-app-path "path/to/app" \
-    --hcp-client-id "example-client-id" \
-    --hcp-client-id-secret "example-client-secret" \
-    --hcp-org-id "example-org-id" \
-    --hcp-project-id "example-project-id" \
-    --trmm-mesh-agent "meshagent.example.com" \
-    --trmm-api-url "https://api.trmm.example.com" \
-    --trmm-client-id 1 \
-    --trmm-site-id 1 \
-    --trmm-auth-key "authkey789" \
-    --zerotier-id "e5cd7a82840b9b7e"
-  ```
+### Important Notes
 
-- **Full Installation Example** (with network configuration):
+- The script now checks and installs additional utilities such as `eget` for downloading executable binaries and `k9s` for Kubernetes cluster management.
+- Kubernetes (`k3s`) installation is integrated into the script with specific configuration adjustments for ZeroTier networks.
+- TacticalRMM agent installation steps are included, showcasing the script's readiness for IT management and monitoring integration.
 
-  ```bash
-  jobdone-nexus-cli install \
-    --hostname "nexus-server-1" \
-    --argocd-git-repo-url "https://git.example.com/repo.git" \
-    --argocd-app-path "path/to/app" \
-    --hcp-client-id "example-client-id" \
-    --hcp-client-id-secret "example-client-secret" \
-    --hcp-org-id "example-org-id" \
-    --hcp-project-id "example-project-id" \
-    --trmm-mesh-agent "meshagent.example.com" \
-    --trmm-api-url "https://api.trmm.example.com" \
-    --trmm-client-id 1 \
-    --trmm-site-id 1 \
-    --trmm-auth-key "authkey789" \
-    --zerotier-id "e5cd7a82840b9b7e" \
-    --static_ip "192.168.1.100" \
-    --gateway "192.168.1.1" \
-    --netmask "255.255.255.0" \
-    --dns "8.8.8.8"
-  ```
-
-These examples demonstrate the flexibility and customization available with the `jobdone-nexus-cli` installation process, catering to various infrastructure needs and configurations.
+After executing the installation command, follow the prompts to complete the setup. The script includes detailed logging and will suggest a reboot at the end of the installation to apply all configurations.
