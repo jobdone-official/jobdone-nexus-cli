@@ -57,6 +57,7 @@ sudo ./jobdone-nexus-cli install \
   --hostname "<hostname>" \
   --ssh-private-key-name "<ssh_private_key_name>" \
   --ssh-public-key-name "<ssh_public_key_name>" \
+  --zerotier-network-id "<zerotier_network_id>" \
   --zerotier-ip-prefix "<zerotier_ip_prefix>" \
   --trmm-mesh-agent "<trmm_mesh_agent>" \
   --trmm-api-url "<trmm_api_url>" \
@@ -74,6 +75,7 @@ sudo ./jobdone-nexus-cli install \
 - `--hostname`: The hostname for the system being installed.
 - `--ssh-private-key-name`: The filename of the SSH private key to be used for secure connections.
 - `--ssh-public-key-name`: The filename of the SSH public key corresponding to the private key.
+- `--zerotier-network-id`: The network ID for the ZeroTier network.
 - `--zerotier-ip-prefix`: The IP prefix for ZeroTier network configurations.
 - `--trmm-mesh-agent`, `--trmm-api-url`, `--trmm-client-id`, `--trmm-site-id`, `--trmm-auth-key`: Parameters required for Tactical RMM integration.
 - `--static-ip`, `--gateway`, `--netmask`, `--dns`: Optional parameters for static IP network configuration.
