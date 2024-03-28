@@ -147,7 +147,12 @@ if ! zerotier-cli -v &> /dev/null; then
     log INFO "Installing ZeroTier..."
     curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
     log INFO "ZeroTier installed successfully."
+else
+    log WARN "ZeroTier is already installed."
+fi
 
+# join zerotier
+if ! zerotier-cli listnetworks | grep "$zerotier_network_id" | grep " OK " > /dev/null; then
     # Join the ZeroTier network
     log INFO "Joining ZeroTier network $zerotier_network_id..."
     sudo zerotier-cli join $zerotier_network_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
@@ -178,10 +183,10 @@ if ! zerotier-cli -v &> /dev/null; then
         fi
     done
 else
-    log WARN "ZeroTier is already installed."
+    log WARN "ZeroTier network $zerotier_network_id is already joined."
 fi
 
-# Check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
+# check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
 zerotier_ip=$(ip -4 addr show | grep "inet" | grep "zt" | grep "$zerotier_ip_prefix" | awk '{print $2}' | cut -d'/' -f1)
 if [ -z "$zerotier_ip" ]; then
     log ERROR "No ZeroTier IP found with the prefix $zerotier_ip_prefix."
