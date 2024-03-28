@@ -106,17 +106,11 @@ echo "gateway: $gateway"
 echo "netmask: $netmask"
 echo "dns: $dns"
 
-# Check if the script is not being run as root
-if [ "$(id -u)" = "0" ]; then
-   echo "This script should not be run as root."
-   exit 1
-fi
-
 # Determine the invoker's home directory
 if [ ! -z "$SUDO_USER" ]; then
-    INVOKER_HOME=$(getent passwd $SUDO_USER | cut -d: -f6)
+    INVOKER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 else
-    echo "This script requires sudo."
+    echo "Please run this script with 'sudo'."
     exit 1
 fi
 

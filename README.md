@@ -53,7 +53,7 @@ sudo curl -o /usr/local/bin/jobdone-nexus-cli https://raw.githubusercontent.com/
 To install and configure the jobdone-nexus-cli, use the following command format. This command includes mandatory parameters for setting up the hostname, ZeroTier IP prefix, Tactical RMM mesh agent, API URL, client ID, site ID, and auth key. Optional network configuration parameters are also available if you're customizing network settings during the installation.
 
 ```bash
-sudo ./jobdone-nexus-cli install \
+sudo jobdone-nexus-cli install \
   --hostname "<hostname>" \
   --ssh-private-key-name "<ssh_private_key_name>" \
   --ssh-public-key-name "<ssh_public_key_name>" \
