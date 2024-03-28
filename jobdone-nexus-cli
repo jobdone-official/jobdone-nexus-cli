@@ -149,11 +149,11 @@ if ! zerotier-cli -v &> /dev/null; then
     log INFO "ZeroTier installed successfully."
 
     # Join the ZeroTier network
-    log INFO "Joining ZeroTier network $networkID..."
-    sudo zerotier-cli join $networkID || { log ERROR "Failed to join ZeroTier network."; exit 1; }
+    log INFO "Joining ZeroTier network $zerotier_network_id..."
+    sudo zerotier-cli join $zerotier_network_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
 
     # Wait for ZeroTier request to be approved
-    log INFO "Waiting for ZeroTier network $networkID request to be approved..."
+    log INFO "Waiting for ZeroTier network $zerotier_network_id request to be approved..."
 
     timeout=600 # 10 minutes in seconds
     start_time=$(date +%s)
@@ -163,17 +163,17 @@ if ! zerotier-cli -v &> /dev/null; then
         remaining_time=$((timeout - elapsed_time))
 
         if [ $remaining_time -le 0 ]; then
-            log ERROR "Timeout reached. ZeroTier network $networkID request was not approved in time."
+            log ERROR "Timeout reached. ZeroTier network $zerotier_network_id request was not approved in time."
             exit 1
         fi
 
-        if sudo zerotier-cli listnetworks | grep "$networkID" | grep " OK " > /dev/null; then
-            log INFO "ZeroTier network $networkID request approved!"
+        if sudo zerotier-cli listnetworks | grep "$zerotier_network_id" | grep " OK " > /dev/null; then
+            log INFO "ZeroTier network $zerotier_network_id request approved!"
             break
         else
             time_min=$((remaining_time / 60))
             time_sec=$((remaining_time % 60))
-            log INFO "Waiting for ZeroTier network $networkID request to be approved... ${time_min}m ${time_sec}s remaining"
+            log INFO "Waiting for ZeroTier network $zerotier_network_id request to be approved... ${time_min}m ${time_sec}s remaining"
             sleep 5
         fi
     done
