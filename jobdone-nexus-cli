@@ -25,6 +25,8 @@ ssh_private_key_name=""
 ssh_public_key_name=""
 zerotier_network_id=""
 zerotier_ip_prefix=""
+
+# optional params
 trmm_mesh_agent=""
 trmm_api_url=""
 trmm_client_id=""
@@ -45,6 +47,8 @@ while [[ "$#" -gt 0 ]]; do
         --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
         --zerotier-network-id) zerotier_network_id="$2"; shift ;;
         --zerotier-ip-prefix) zerotier_ip_prefix="$2"; shift ;;
+
+        # optional params
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
         --trmm-api-url) trmm_api_url="$2"; shift ;;
         --trmm-client-id) trmm_client_id="$2"; shift ;;
@@ -70,12 +74,7 @@ done
 if [ -z "$hostname" ] || \
     [ -z "$ssh_private_key_name" ] || \
     [ -z "$ssh_public_key_name" ] || \
-    [ -z "$zerotier_ip_prefix" ] || \
-    [ -z "$trmm_mesh_agent" ] || \
-    [ -z "$trmm_api_url" ] || \
-    [ -z "$trmm_client_id" ] || \
-    [ -z "$trmm_site_id" ] || \
-    [ -z "$trmm_auth_key" ]; then
+    [ -z "$zerotier_ip_prefix" ]; then
     echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --zerotier-network-id <zerotier_network_id> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
@@ -142,6 +141,32 @@ sudo apt install -y curl unzip vim htop git net-tools wget ncdu tmux || { log ER
 # sudo apt install -y iperf3 # note iperf requires an interactive prompt
 log INFO "Basic packages installed successfully."
 
+# Ensure root's .ssh directory exists
+sudo mkdir -p /root/.ssh
+sudo chmod 700 /root/.ssh
+
+# Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$ssh_private_key_name" ] && [ ! -f "/root/.ssh/$ssh_private_key_name" ]; then
+    log INFO "Copying SSH private key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_private_key_name" "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to copy SSH private key to root's .ssh directory."; exit 1; }
+    sudo chmod 600 "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set permissions on SSH private key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set ownership on SSH private key."; exit 1; }
+    log INFO "SSH private key copied to root's .ssh directory."
+else
+    log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+fi
+
+# Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
+if [ -f "$INVOKER_HOME/.ssh/$ssh_public_key_name" ] && [ ! -f "/root/.ssh/$ssh_public_key_name" ]; then
+    log INFO "Copying SSH public key to root's .ssh directory..."
+    sudo cp "$INVOKER_HOME/.ssh/$ssh_public_key_name" "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to copy SSH public key to root's .ssh directory."; exit 1; }
+    sudo chmod 644 "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set permissions on SSH public key."; exit 1; }
+    sudo chown root:root "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set ownership on SSH public key."; exit 1; }
+    log INFO "SSH public key copied to root's .ssh directory."
+else
+    log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+fi
+
 # install zerotier
 if ! zerotier-cli -v &> /dev/null; then
     log INFO "Installing ZeroTier..."
@@ -193,30 +218,21 @@ if [ -z "$zerotier_ip" ]; then
     exit 1
 fi
 
-# Ensure root's .ssh directory exists
-sudo mkdir -p /root/.ssh
-sudo chmod 700 /root/.ssh
+# install cloudflared
+if ! cloudflared --version &> /dev/null; then
+    log INFO "Installing Cloudflared..."
+    # Add cloudflare gpg key
+    sudo mkdir -p --mode=0755 /usr/share/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
 
-# Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$ssh_private_key_name" ] && [ ! -f "/root/.ssh/$ssh_private_key_name" ]; then
-    log INFO "Copying SSH private key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$ssh_private_key_name" "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to copy SSH private key to root's .ssh directory."; exit 1; }
-    sudo chmod 600 "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set permissions on SSH private key."; exit 1; }
-    sudo chown root:root "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set ownership on SSH private key."; exit 1; }
-    log INFO "SSH private key copied to root's .ssh directory."
-else
-    log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
-fi
+    # Add this repo to your apt repositories
+    echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared bookworm main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
 
-# Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$ssh_public_key_name" ] && [ ! -f "/root/.ssh/$ssh_public_key_name" ]; then
-    log INFO "Copying SSH public key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$ssh_public_key_name" "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to copy SSH public key to root's .ssh directory."; exit 1; }
-    sudo chmod 644 "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set permissions on SSH public key."; exit 1; }
-    sudo chown root:root "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set ownership on SSH public key."; exit 1; }
-    log INFO "SSH public key copied to root's .ssh directory."
+    # install cloudflared
+    sudo apt-get update && sudo apt-get install cloudflared
+    log INFO "Cloudflared installed successfully."
 else
-    log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
+    log WARN "Cloudflared is already installed."
 fi
 
 check_k3s_ready() {
@@ -290,11 +306,16 @@ fi
 
 # tacticalrmm agent
 if [ ! -f /usr/local/bin/rmmagent ]; then
-    log INFO "Installing TacticalRMM agent..."
-    wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh || { log ERROR "Failed to download TacticalRMM script."; exit 1; }
-    sudo chmod +x rmmagent-linux.sh
-    sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server || { log ERROR "Failed to install TacticalRMM agent."; exit 1; }
-    log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
+    # Check if optional environment variables for TRMM installation are set
+    if [ -z "$trmm_mesh_agent" ] || [ -z "$trmm_api_url" ] || [ -z "$trmm_client_id" ] || [ -z "$trmm_site_id" ] || [ -z "$trmm_auth_key" ]; then
+        log WARN "Optional parameters for TRMM installation are not set. Installation will be skipped."
+    else
+        log INFO "Installing TacticalRMM agent..."
+        wget https://raw.githubusercontent.com/netvolt/LinuxRMM-Script/main/rmmagent-linux.sh || { log ERROR "Failed to download TacticalRMM script."; exit 1; }
+        sudo chmod +x rmmagent-linux.sh || { log ERROR "Failed to make TacticalRMM script executable."; exit 1; }
+        sudo ./rmmagent-linux.sh install 'amd64' $trmm_mesh_agent $trmm_api_url $trmm_client_id $trmm_site_id $trmm_auth_key server || { log ERROR "Failed to install TacticalRMM agent."; exit 1; }
+        log INFO "TacticalRMM agent installed successfully, check if the token was accepted."
+    fi
 else
     log WARN "TacticalRMM agent is already installed."
 fi
