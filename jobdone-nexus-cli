@@ -174,7 +174,7 @@ else
 fi
 
 # join Tailscale network
-if tailscale ip | grep -q "NeedsLogin"; then
+if tailscale status | grep -q "Logged out"; then
     log INFO "Joining Tailscale network..."
     sudo tailscale up --authkey "$tailscale_authkey" || { log ERROR "Failed to join Tailscale network."; exit 1; }
     
@@ -190,7 +190,7 @@ if tailscale ip | grep -q "NeedsLogin"; then
             exit 1
         fi
         
-        if ! tailscale ip | grep -q "NeedsLogin"; then
+        if ! tailscale status | grep -q "Logged out"; then
             log INFO "Tailscale connected successfully!"
             break
         else
