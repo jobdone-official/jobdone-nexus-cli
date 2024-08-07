@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --zerotier-network-id <zerotier_network_id> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -23,8 +23,7 @@ EOF
 hostname=""
 ssh_private_key_name=""
 ssh_public_key_name=""
-zerotier_network_id=""
-zerotier_ip_prefix=""
+tailscale_authkey=""
 
 # optional params
 trmm_mesh_agent=""
@@ -45,8 +44,7 @@ while [[ "$#" -gt 0 ]]; do
         --hostname) hostname="$2"; shift ;;
         --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
         --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
-        --zerotier-network-id) zerotier_network_id="$2"; shift ;;
-        --zerotier-ip-prefix) zerotier_ip_prefix="$2"; shift ;;
+        --tailscale-authkey) tailscale_authkey="$2"; shift ;;
 
         # optional params
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
@@ -74,8 +72,8 @@ done
 if [ -z "$hostname" ] || \
     [ -z "$ssh_private_key_name" ] || \
     [ -z "$ssh_public_key_name" ] || \
-    [ -z "$zerotier_ip_prefix" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --zerotier-network-id <zerotier_network_id> --zerotier-ip-prefix <zerotier_ip_prefix> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    [ -z "$tailscale_authkey" ]; then
+    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 # Define log file with timestamp
@@ -99,7 +97,6 @@ log() {
 echo "hostname: $hostname"
 echo "ssh_private_key_name: $ssh_private_key_name"
 echo "ssh_public_key_name: $ssh_public_key_name"
-echo "zerotier_ip_prefix: $zerotier_ip_prefix"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
@@ -167,54 +164,48 @@ else
     log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
 fi
 
-# install zerotier
-if ! zerotier-cli -v &> /dev/null; then
-    log INFO "Installing ZeroTier..."
-    curl -s https://install.zerotier.com | sudo bash || { log ERROR "Failed to install ZeroTier."; exit 1; }
-    log INFO "ZeroTier installed successfully."
+# install Tailscale
+if ! tailscale version &> /dev/null; then
+    log INFO "Installing Tailscale..."
+    curl -fsSL https://tailscale.com/install.sh | sh || { log ERROR "Failed to install Tailscale."; exit 1; }
+    log INFO "Tailscale installed successfully."
 else
-    log WARN "ZeroTier is already installed."
+    log WARN "Tailscale is already installed."
 fi
 
-# join zerotier
-if ! zerotier-cli listnetworks | grep "$zerotier_network_id" | grep " OK " > /dev/null; then
-    # Join the ZeroTier network
-    log INFO "Joining ZeroTier network $zerotier_network_id..."
-    sudo zerotier-cli join $zerotier_network_id || { log ERROR "Failed to join ZeroTier network."; exit 1; }
-
-    # Wait for ZeroTier request to be approved
-    log INFO "Waiting for ZeroTier network $zerotier_network_id request to be approved..."
-
-    timeout=600 # 10 minutes in seconds
+# join Tailscale network
+if tailscale ip | grep -q "Logged out"; then
+    log INFO "Joining Tailscale network..."
+    sudo tailscale up --authkey "$tailscale_authkey" || { log ERROR "Failed to join Tailscale network."; exit 1; }
+    
+    # wait for Tailscale to connect
+    timeout=60
     start_time=$(date +%s)
     while true; do
         current_time=$(date +%s)
         elapsed_time=$((current_time - start_time))
-        remaining_time=$((timeout - elapsed_time))
-
-        if [ $remaining_time -le 0 ]; then
-            log ERROR "Timeout reached. ZeroTier network $zerotier_network_id request was not approved in time."
+        
+        if [ $elapsed_time -ge $timeout ]; then
+            log ERROR "Timeout reached. Tailscale failed to connect in time."
             exit 1
         fi
-
-        if sudo zerotier-cli listnetworks | grep "$zerotier_network_id" | grep " OK " > /dev/null; then
-            log INFO "ZeroTier network $zerotier_network_id request approved!"
+        
+        if ! tailscale ip | grep -q "Logged out"; then
+            log INFO "Tailscale connected successfully!"
             break
         else
-            time_min=$((remaining_time / 60))
-            time_sec=$((remaining_time % 60))
-            log INFO "Waiting for ZeroTier network $zerotier_network_id request to be approved... ${time_min}m ${time_sec}s remaining"
+            log INFO "Waiting for Tailscale to connect... $(($timeout - $elapsed_time)) seconds remaining"
             sleep 5
         fi
     done
 else
-    log WARN "ZeroTier network $zerotier_network_id is already joined."
+    log WARN "Tailscale is already connected."
 fi
 
-# check if there is an interface that starts with "zt" (zerotier) and a zerotier ip with the ip prefix and set the zerotier_ip variable
-zerotier_ip=$(ip -4 addr show | grep "inet" | grep "zt" | grep "$zerotier_ip_prefix" | awk '{print $2}' | cut -d'/' -f1)
-if [ -z "$zerotier_ip" ]; then
-    log ERROR "No ZeroTier IP found with the prefix $zerotier_ip_prefix."
+# get Tailscale IP
+tailscale_ip=$(tailscale ip | head -n 1)
+if [ -z "$tailscale_ip" ]; then
+    log ERROR "Failed to get Tailscale IP."
     exit 1
 fi
 
@@ -250,7 +241,7 @@ check_k3s_ready() {
 # k3s
 if ! k3s --version &> /dev/null; then
     log INFO "Installing k3s without traefik..."
-    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $zerotier_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
+    curl -sfL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik --tls-san $tailscale_ip --kubelet-arg=runtime-request-timeout=5h" sh - || { log ERROR "Failed to install k3s."; exit 1; }
 
     # Copy k3s.yaml to root's .kube directory and ensure directory exists
     log INFO "Copying k3s.yaml to root's .kube directory..."
@@ -321,7 +312,7 @@ else
 fi
 
 # show /etc/rancher/k3s/k3s.yaml with instructions
-k3s_argocd_file_name="${zerotier_ip}-${hostname}.yaml"
+k3s_argocd_file_name="${tailscale_ip}-${hostname}.yaml"
 echo -e "\n\n"
 cat /etc/rancher/k3s/k3s.yaml
 echo -e "\n\n"
