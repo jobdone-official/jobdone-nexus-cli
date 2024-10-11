@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -21,8 +21,6 @@ EOF
 
 # Initialize variables
 hostname=""
-ssh_private_key_name=""
-ssh_public_key_name=""
 tailscale_authkey=""
 
 # optional params
@@ -42,8 +40,6 @@ dns=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
-        --ssh-private-key-name) ssh_private_key_name="$2"; shift ;;
-        --ssh-public-key-name) ssh_public_key_name="$2"; shift ;;
         --tailscale-authkey) tailscale_authkey="$2"; shift ;;
 
         # optional params
@@ -69,13 +65,11 @@ done
 # - gateway
 # - netmask
 # - dns
-if [ -z "$hostname" ] || \
-    [ -z "$ssh_private_key_name" ] || \
-    [ -z "$ssh_public_key_name" ] || \
-    [ -z "$tailscale_authkey" ]; then
-    echo "Usage: $0 install --hostname <hostname> --ssh-private-key-name <ssh_private_key_name> --ssh-public-key-name <ssh_public_key_name> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+if [ -z "$hostname" ] || [ -z "$tailscale_authkey" ]; then
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
     exit 1
 fi
+
 # Define log file with timestamp
 log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
 
@@ -95,8 +89,6 @@ log() {
 
 # log params
 echo "hostname: $hostname"
-echo "ssh_private_key_name: $ssh_private_key_name"
-echo "ssh_public_key_name: $ssh_public_key_name"
 echo "static_ip: $static_ip"
 echo "gateway: $gateway"
 echo "netmask: $netmask"
@@ -137,32 +129,6 @@ sudo apt upgrade -y || { log ERROR "Failed to upgrade packages."; exit 1; }
 sudo apt install -y curl unzip vim htop git net-tools wget ncdu tmux btop || { log ERROR "Failed to install basic packages."; exit 1; }
 # sudo apt install -y iperf3 # note iperf requires an interactive prompt
 log INFO "Basic packages installed successfully."
-
-# Ensure root's .ssh directory exists
-sudo mkdir -p /root/.ssh
-sudo chmod 700 /root/.ssh
-
-# Check for the existence of the SSH private key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$ssh_private_key_name" ] && [ ! -f "/root/.ssh/$ssh_private_key_name" ]; then
-    log INFO "Copying SSH private key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$ssh_private_key_name" "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to copy SSH private key to root's .ssh directory."; exit 1; }
-    sudo chmod 600 "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set permissions on SSH private key."; exit 1; }
-    sudo chown root:root "/root/.ssh/$ssh_private_key_name" || { log ERROR "Failed to set ownership on SSH private key."; exit 1; }
-    log INFO "SSH private key copied to root's .ssh directory."
-else
-    log INFO "SSH private key already exists in root's .ssh directory or not found in invoker's .ssh directory."
-fi
-
-# Check for the existence of the SSH public key and copy if it does not exist in root's .ssh
-if [ -f "$INVOKER_HOME/.ssh/$ssh_public_key_name" ] && [ ! -f "/root/.ssh/$ssh_public_key_name" ]; then
-    log INFO "Copying SSH public key to root's .ssh directory..."
-    sudo cp "$INVOKER_HOME/.ssh/$ssh_public_key_name" "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to copy SSH public key to root's .ssh directory."; exit 1; }
-    sudo chmod 644 "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set permissions on SSH public key."; exit 1; }
-    sudo chown root:root "/root/.ssh/$ssh_public_key_name" || { log ERROR "Failed to set ownership on SSH public key."; exit 1; }
-    log INFO "SSH public key copied to root's .ssh directory."
-else
-    log INFO "SSH public key already exists in root's .ssh directory or not found in invoker's .ssh directory."
-fi
 
 # install Tailscale
 if ! tailscale version &> /dev/null; then
