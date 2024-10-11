@@ -27,6 +27,24 @@ sudo bash ./setup-jobdone.sh
 
 To install and configure the jobdone-nexus-cli, use the following command format. This command includes mandatory parameters for setting up the hostname, tailscale, Tactical RMM mesh agent, API URL, client ID, site ID, and auth key. Optional network configuration parameters are also available if you're customizing network settings during the installation.
 
+It is recommended to run this screen in tmux in case the network connectivity is lost.
+
+```bash
+sudo apt install tmux
+
+tmux
+```
+
+Required options:
+
+```bash
+sudo jobdone-nexus-cli install \
+  --hostname "<hostname>" \
+  --tailscale-authkey "<tailscale-authkey>"
+```
+
+All options:
+
 ```bash
 sudo jobdone-nexus-cli install \
   --hostname "<hostname>" \
