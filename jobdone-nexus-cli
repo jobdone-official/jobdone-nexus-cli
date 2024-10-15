@@ -192,6 +192,34 @@ else
     log WARN "Cloudflared is already installed."
 fi
 
+# Function to add 127.0.0.1 jobdonenexus to /etc/hosts if it doesn't exist
+add_hosts_entry() {
+    local ip="127.0.0.1"
+    local hostname="jobdonenexus"
+    
+    # Check if a line contains both the IP and the hostname
+    if grep -qE "^$ip[[:space:]]+$hostname" /etc/hosts; then
+        log INFO "Entry '$ip $hostname' already exists in /etc/hosts."
+    else
+        log INFO "Adding '$ip $hostname' to /etc/hosts..."
+        echo "$ip $hostname" | sudo tee -a /etc/hosts > /dev/null
+        if [ $? -eq 0 ]; then
+            log INFO "Entry '$ip $hostname' added to /etc/hosts successfully."
+        else
+            log ERROR "Failed to add '$ip $hostname' to /etc/hosts."
+        fi
+    fi
+}
+
+# Call the function to add the hosts entry
+add_hosts_entry
+
+# Call the function to add the hosts entry
+add_hosts_entry
+
+# Call the function to add the hosts entry
+add_hosts_entry
+
 check_k3s_ready() {
     while true; do
         if kubectl get nodes &> /dev/null; then
