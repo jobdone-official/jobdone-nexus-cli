@@ -214,12 +214,6 @@ add_hosts_entry() {
 # Call the function to add the hosts entry
 add_hosts_entry
 
-# Call the function to add the hosts entry
-add_hosts_entry
-
-# Call the function to add the hosts entry
-add_hosts_entry
-
 check_k3s_ready() {
     while true; do
         if kubectl get nodes &> /dev/null; then
