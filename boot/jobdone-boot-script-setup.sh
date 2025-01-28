@@ -35,10 +35,6 @@ while true; do
         echo "Error: Tailscale auth key cannot be empty"
         continue
     fi
-    if [[ ! "${TAILSCALE_AUTH_KEY}" =~ ^tskey-[a-zA-Z0-9]+$ ]]; then
-        echo "Error: Invalid Tailscale auth key format"
-        continue
-    fi
     break
 done
 
