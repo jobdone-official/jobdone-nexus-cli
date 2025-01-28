@@ -114,13 +114,13 @@ if [ -n "$hostname" ]; then
     # change /etc/hosts
     sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
     log INFO "Hostname set to $hostname."
-fi
 
-# regenerate machine ID
-log INFO "Regenerating machine ID..."
-sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
-sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
-log INFO "Machine ID regenerated successfully."
+    # regenerate machine ID
+    log INFO "Regenerating machine ID..."
+    sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
+    sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
+    log INFO "Machine ID regenerated successfully."
+fi
 
 # install basic packages
 log INFO "Installing basic packages..."
