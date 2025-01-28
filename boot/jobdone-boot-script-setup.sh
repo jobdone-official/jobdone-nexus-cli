@@ -297,7 +297,7 @@ systemctl enable jobdone-tailscale-check
 
 echo "Setup complete! Next steps:"
 echo "1. Review the scripts in ${SCRIPTS_DIR}/"
-echo "2. Check service status with: systemctl status jobdone-initial-setup"
+echo "2. Check service status with: systemctl status jobdone-initial-setup and systemctl status jobdone-tailscale-check"
 echo "3. Check logs in ${LOG_DIR}/jobdone-*.log"
 echo "4. Backup files are stored in ${BACKUP_DIR}"
-echo "5. Shutdown the VM and use it as a template"
+echo "5. Shutdown the VM and use it as a template. Important: Do not start it again, as tailscale will run automatically!"
