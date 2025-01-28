@@ -74,9 +74,11 @@ log() {
     logger -t "jobdone" "$1"
 }
 
-# Function to check network connectivity
+# Network check function with multiple endpoints
 check_network() {
-    ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1
+    ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1 || 
+    ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1 || 
+    curl -s --connect-timeout 5 https://example.com >/dev/null
 }
 
 # Function to check Tailscale connection
@@ -112,7 +114,10 @@ perform_system_setup() {
     # Reset machine-id
     log "Regenerating machine-id"
     rm -f /etc/machine-id
-    systemd-machine-id-setup
+    if ! systemd-machine-id-setup; then
+        log "Failed to regenerate machine-id"
+        exit 1
+    fi
 
     # Generate hostname
     DATE_TIME=$(date +%y%m%d_%H%M)
@@ -125,8 +130,18 @@ perform_system_setup() {
 
     # Install base packages
     log "Installing base packages"
-    if ! DEBIAN_FRONTEND=noninteractive apt-get update; then
-        log "Failed to update package list"
+    apt_update_successful=false
+    for i in {1..3}; do
+        if DEBIAN_FRONTEND=noninteractive apt-get update; then
+            apt_update_successful=true
+            break
+        fi
+        log "Attempt $i to update package list failed, retrying..."
+        sleep 10
+    done
+
+    if ! $apt_update_successful; then
+        log "Failed to update package list after 3 attempts"
         exit 1
     fi
 
@@ -157,8 +172,13 @@ perform_system_setup
 if ! command -v tailscale &> /dev/null; then
     if [ ! -f "${TAILSCALE_DONE_FILE}" ]; then
         log "Installing Tailscale"
-        curl -fsSL https://tailscale.com/install.sh | sh
-        touch "${TAILSCALE_DONE_FILE}"
+        if curl -fsSL https://tailscale.com/install.sh | sh; then
+            touch "${TAILSCALE_DONE_FILE}"
+            log "Tailscale installation successful"
+        else
+            log "Tailscale installation failed"
+            exit 1
+        fi
     fi
 fi
 
