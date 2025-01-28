@@ -8,7 +8,7 @@ readonly SETUP_DIR="/var/lib/jobdone"
 readonly LOG_DIR="/var/log"
 readonly BACKUP_DIR="${SETUP_DIR}/backups/$(date +%Y%m%d_%H%M%S)"
 readonly SCRIPTS_DIR="/usr/local/bin"
-readonly SYSTEMD_DIR="/etc/systemd/system"
+readonly STATE_DIR="${SETUP_DIR}/state"
 
 # Error handling
 trap 'echo "Error: Script failed on line $LINENO"; exit 1' ERR
@@ -25,8 +25,8 @@ if [[ $EUID -ne 0 ]]; then
     exec sudo "$0" "$@"
 fi
 
-# Create backup directory
-mkdir -p "${BACKUP_DIR}"
+# Create necessary directories
+mkdir -p "${BACKUP_DIR}" "${STATE_DIR}" "${LOG_DIR}"
 
 # Get Tailscale auth key with validation
 while true; do
@@ -46,116 +46,32 @@ for file in /etc/hosts /etc/machine-id; do
 done
 
 #############################################
-# Create service files
+# Create main script
 #############################################
 
-echo "Creating service files..."
-
-# Create initial setup service
-cat > "${SYSTEMD_DIR}/jobdone-initial-setup.service" << 'EOF'
-[Unit]
-Description=Initial JobDone VM Setup and Tailscale Installation
-After=network-online.target local-fs.target
-Wants=network-online.target
-Before=jobdone-tailscale-check.service
-StartLimitIntervalSec=300
-StartLimitBurst=3
-
-[Service]
-Type=oneshot
-User=root
-Group=root
-ExecStart=/usr/local/bin/jobdone-initial-setup.sh
-RemainAfterExit=yes
-ProtectSystem=full
-ProtectHome=true
-PrivateTmp=true
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Create Tailscale check service
-cat > "${SYSTEMD_DIR}/jobdone-tailscale-check.service" << 'EOF'
-[Unit]
-Description=Tailscale Connection Check
-After=network-online.target local-fs.target tailscaled.service jobdone-initial-setup.service
-Wants=network-online.target
-Requires=jobdone-initial-setup.service
-
-[Service]
-Type=simple
-User=root
-Group=root
-ExecStart=/usr/local/bin/jobdone-tailscale-check.sh
-Restart=on-failure
-ProtectSystem=full
-ProtectHome=true
-PrivateTmp=true
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-#############################################
-# Create initial setup script
-#############################################
-
-echo "Creating initial setup script..."
-cat > "${SCRIPTS_DIR}/jobdone-initial-setup.sh" << 'EOF'
+echo "Creating main script..."
+cat > "${SCRIPTS_DIR}/jobdone.sh" << 'EOF'
 #!/bin/bash
+
+# Exit on error
 set -e
 
-# Error handling
-trap 'echo "Error: Script failed on line $LINENO"; exit 1' ERR
+# Define variables
+readonly SETUP_DIR="/var/lib/jobdone"
+readonly LOG_DIR="/var/log"
+readonly SCRIPTS_DIR="/usr/local/bin"
+readonly STATE_DIR="${SETUP_DIR}/state"
+readonly SETUP_DONE_FILE="${STATE_DIR}/setup.done"
+readonly TAILSCALE_DONE_FILE="${STATE_DIR}/tailscale.done"
+readonly LOG_FILE="${LOG_DIR}/jobdone.log"
 
-# Set up logging
-LOG_FILE="/var/log/jobdone-initial-setup.log"
-exec 1> >(tee -a "${LOG_FILE}") 2>&1
+# Create necessary directories
+mkdir -p "${STATE_DIR}" "${LOG_DIR}"
 
+# Logging function
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${LOG_FILE}"
-    logger -t "jobdone-initial-setup" "$1"
-}
-
-log "Starting initial JobDone setup"
-
-# Set timezone
-log "Setting timezone to UTC"
-timedatectl set-timezone UTC
-
-# Reset machine-id
-log "Regenerating machine-id"
-rm -f /etc/machine-id
-systemd-machine-id-setup
-
-# Generate hostname
-DATE_TIME=$(date +%y%m%d_%H%M)
-MACHINE_ID=$(cat /etc/machine-id | cut -c-4)
-HOSTNAME="jobdone-debian-${DATE_TIME}-${MACHINE_ID}"
-
-log "Setting hostname to: ${HOSTNAME}"
-hostnamectl set-hostname "${HOSTNAME}"
-sed -i "s/127\.0\.1\.1.*/127.0.1.1\t${HOSTNAME}/" /etc/hosts
-
-# Install base packages
-log "Installing base packages"
-apt update || {
-    log "ERROR: Failed to update package list"
-    exit 1
-}
-apt install -y curl unzip vim htop git net-tools wget ncdu tmux btop || {
-    log "ERROR: Failed to install base packages"
-    exit 1
-}
-
-# Install and configure Tailscale
-log "Installing Tailscale"
-curl -fsSL https://tailscale.com/install.sh | sh || {
-    log "ERROR: Failed to install Tailscale"
-    exit 1
+    logger -t "jobdone" "$1"
 }
 
 # Function to check network connectivity
@@ -163,117 +79,115 @@ check_network() {
     ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1
 }
 
-# Wait for network connectivity
-MAX_RETRIES=30
-RETRY_COUNT=0
-while ! check_network; do
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        log "ERROR: Network connectivity not available after $MAX_RETRIES attempts"
-        exit 1
-    fi
-    log "Waiting for network connectivity... (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)"
-    sleep 10
-    RETRY_COUNT=$((RETRY_COUNT+1))
-done
-
-log "Starting Tailscale with new hostname"
-if ! tailscale up --hostname="${HOSTNAME}" --authkey=TAILSCALE_AUTH_KEY_PLACEHOLDER; then
-    log "ERROR: Failed to connect to Tailscale"
-    exit 1
-fi
-
-# Enable the check service for future boots
-systemctl enable jobdone-tailscale-check || {
-    log "ERROR: Failed to enable Tailscale check service"
-    exit 1
-}
-
-log "Initial JobDone setup complete"
-EOF
-
-#############################################
-# Create Tailscale check script
-#############################################
-
-echo "Creating Tailscale check script..."
-cat > "${SCRIPTS_DIR}/jobdone-tailscale-check.sh" << 'EOF'
-#!/bin/bash
-set -e
-
-# Error handling
-trap 'echo "Error: Script failed on line $LINENO"; exit 1' ERR
-
-# Set up logging
-LOG_FILE="/var/log/jobdone-tailscale-check.log"
-exec 1> >(tee -a "${LOG_FILE}") 2>&1
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${LOG_FILE}"
-    logger -t "jobdone-tailscale-check" "$1"
-}
-
-check_connection() {
-    # Check if tailscale is installed
+# Function to check Tailscale connection
+check_tailscale() {
+    # Check if tailscale is installed and running
     if ! command -v tailscale &> /dev/null; then
-        log "ERROR: Tailscale not installed"
         return 1
     fi
-
-    # Check if tailscale daemon is running
-    if ! systemctl is-active --quiet tailscaled; then
-        log "WARNING: Tailscale daemon not running, attempting to start"
-        if ! systemctl start tailscaled; then
-            log "ERROR: Failed to start tailscaled"
-            return 1
-        fi
+    
+    if ! pgrep tailscaled &>/dev/null; then
+        systemctl start tailscaled || return 1
         sleep 5
     fi
-
-    # Check if tailscale is up with timeout
-    if ! timeout 10 tailscale status | grep -q "^100\..*"; then
-        log "WARNING: Tailscale not connected"
-        return 1
-    fi
-
-    log "SUCCESS: Tailscale is running and connected"
+    
+    # Check if tailscale is up
+    timeout 10 tailscale status | grep -q "^100\.*" || return 1
     return 0
 }
 
-# Main loop
+# One-time system setup
+perform_system_setup() {
+    if [ -f "${SETUP_DONE_FILE}" ]; then
+        log "System setup already completed, skipping..."
+        return 0
+    fi
+
+    log "Performing one-time system setup..."
+    
+    # Set timezone
+    log "Setting timezone to UTC"
+    timedatectl set-timezone UTC
+
+    # Reset machine-id
+    log "Regenerating machine-id"
+    rm -f /etc/machine-id
+    systemd-machine-id-setup
+
+    # Generate hostname
+    DATE_TIME=$(date +%y%m%d_%H%M)
+    MACHINE_ID=$(cat /etc/machine-id | cut -c-4)
+    HOSTNAME="jobdone-debian-${DATE_TIME}-${MACHINE_ID}"
+
+    log "Setting hostname to: ${HOSTNAME}"
+    hostnamectl set-hostname "${HOSTNAME}"
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t${HOSTNAME}/" /etc/hosts
+
+    # Install base packages
+    log "Installing base packages"
+    DEBIAN_FRONTEND=noninteractive apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip vim htop git net-tools wget ncdu tmux btop
+
+    # Mark setup as complete
+    touch "${SETUP_DONE_FILE}"
+    log "One-time setup completed"
+}
+
+# Main execution
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root"
+    exit 1
+fi
+
+# Perform system setup first
+perform_system_setup
+
+# Install Tailscale if not present
+if ! command -v tailscale &> /dev/null; then
+    if [ ! -f "${TAILSCALE_DONE_FILE}" ]; then
+        log "Installing Tailscale"
+        curl -fsSL https://tailscale.com/install.sh | sh
+        touch "${TAILSCALE_DONE_FILE}"
+    fi
+fi
+
+# Loop until Tailscale is connected
+log "Starting Tailscale connection loop..."
 while true; do
-    if ! check_connection; then
+    if ! check_network; then
+        log "Waiting for network connectivity..."
+        sleep 30
+        continue
+    fi
+
+    if ! check_tailscale; then
         log "Attempting to connect to Tailscale"
         tailscale up --hostname="$(hostname)" --authkey=TAILSCALE_AUTH_KEY_PLACEHOLDER || true
-        
-        # Wait before next check
-        sleep 10
+        sleep 30
     else
-        # Everything is good, wait longer before next check
-        sleep 300
+        log "Tailscale successfully connected"
+        break
     fi
 done
+
+# Remove cron job as we're done
+rm -f /etc/cron.d/jobdone
+log "Setup complete, removed cron job"
+
+exit 0
 EOF
 
-# Replace auth key placeholder in both scripts
-sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
-sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
+# Replace auth key placeholder
+sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone.sh"
 
 # Set permissions and ownership
 echo "Setting permissions and ownership..."
-chmod +x "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
-chmod +x "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
-chmod 644 "${SYSTEMD_DIR}/jobdone-initial-setup.service"
-chmod 644 "${SYSTEMD_DIR}/jobdone-tailscale-check.service"
-
-# Set ownership
-chown root:root "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
-chown root:root "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
-chown root:root "${SYSTEMD_DIR}/jobdone-initial-setup.service"
-chown root:root "${SYSTEMD_DIR}/jobdone-tailscale-check.service"
+chmod +x "${SCRIPTS_DIR}/jobdone.sh"
+chown root:root "${SCRIPTS_DIR}/jobdone.sh"
 
 # Create log rotation configuration
 cat > /etc/logrotate.d/jobdone << 'EOF'
-/var/log/jobdone-*.log {
+/var/log/jobdone.log {
     daily
     rotate 7
     compress
@@ -284,18 +198,20 @@ cat > /etc/logrotate.d/jobdone << 'EOF'
 }
 EOF
 
-#############################################
-# Enable services
-#############################################
-
-echo "Enabling services..."
-systemctl daemon-reload
-systemctl enable jobdone-initial-setup
-systemctl enable jobdone-tailscale-check
+# Set up cron job to run only at boot
+echo "Setting up cron job..."
+echo "@reboot root ${SCRIPTS_DIR}/jobdone.sh >/dev/null 2>&1" > /etc/cron.d/jobdone
+chmod 644 /etc/cron.d/jobdone
 
 echo "Setup complete! Next steps:"
-echo "1. Review the scripts in ${SCRIPTS_DIR}/"
-echo "2. Check service status with: systemctl status jobdone-initial-setup and systemctl status jobdone-tailscale-check"
-echo "3. Check logs in ${LOG_DIR}/jobdone-*.log"
-echo "4. Backup files are stored in ${BACKUP_DIR}"
-echo "5. Shutdown the VM and use it as a template. Important: Do not start it again, as tailscale will run automatically!"
+echo "1. Review the script in ${SCRIPTS_DIR}/jobdone.sh"
+echo "2. Check cron job in /etc/cron.d/jobdone"
+echo "3. Backup files are stored in ${BACKUP_DIR}"
+echo "4. State files will be kept in ${STATE_DIR}"
+echo "5. Logs will be written to ${LOG_DIR}/jobdone.log"
+echo "6. Shutdown the VM and use it as a template."
+echo "Note: The script will run at next boot and:"
+echo "      - Perform one-time system setup (if not done)"
+echo "      - Install and configure Tailscale"
+echo "      - Loop until Tailscale is connected"
+echo "      - Remove itself once everything is complete"
