@@ -79,8 +79,7 @@ mkdir -p "${STATE_DIR}" "${LOG_DIR}"
 # Logging function
 log() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] $1" | tee -a "${LOG_FILE}"
-    logger -t "jobdone" "$1"
+    echo "[$timestamp] $1" >> "${LOG_FILE}"
 }
 
 # Enhanced network check function with multiple endpoints
