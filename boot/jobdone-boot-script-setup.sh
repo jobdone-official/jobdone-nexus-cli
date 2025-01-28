@@ -55,7 +55,7 @@ echo "Creating service files..."
 cat > "${SYSTEMD_DIR}/jobdone-initial-setup.service" << 'EOF'
 [Unit]
 Description=Initial JobDone VM Setup and Tailscale Installation
-After=network-online.target
+After=network-online.target local-fs.target
 Wants=network-online.target
 Before=jobdone-tailscale-check.service
 StartLimitIntervalSec=300
@@ -80,7 +80,7 @@ EOF
 cat > "${SYSTEMD_DIR}/jobdone-tailscale-check.service" << 'EOF'
 [Unit]
 Description=Tailscale Connection Check
-After=network-online.target tailscaled.service jobdone-initial-setup.service
+After=network-online.target local-fs.target tailscaled.service jobdone-initial-setup.service
 Wants=network-online.target
 Requires=jobdone-initial-setup.service
 
