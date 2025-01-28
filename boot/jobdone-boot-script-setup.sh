@@ -26,7 +26,9 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Create necessary directories
+echo "Creating required directories..."
 mkdir -p "${BACKUP_DIR}" "${STATE_DIR}" "${LOG_DIR}"
+echo "Directories created successfully"
 
 # Get Tailscale auth key with validation
 while true; do
@@ -37,13 +39,19 @@ while true; do
     fi
     break
 done
+echo "Tailscale auth key received"
 
 # Backup existing files if they exist
+echo "Starting backup of existing configuration files..."
 for file in /etc/hosts /etc/machine-id; do
     if [[ -f "$file" ]]; then
+        echo "Backing up $file to ${BACKUP_DIR}/$(basename $file).bak"
         cp "$file" "${BACKUP_DIR}/$(basename $file).bak"
+    else
+        echo "File $file does not exist, skipping backup"
     fi
 done
+echo "Backup process completed"
 
 #############################################
 # Create main script
@@ -70,32 +78,56 @@ mkdir -p "${STATE_DIR}" "${LOG_DIR}"
 
 # Logging function
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${LOG_FILE}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $1" | tee -a "${LOG_FILE}"
     logger -t "jobdone" "$1"
 }
 
-# Network check function with multiple endpoints
+# Enhanced network check function with multiple endpoints
 check_network() {
-    ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1 || 
-    ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1 || 
-    curl -s --connect-timeout 5 https://example.com >/dev/null
+    log "Checking network connectivity..."
+    if ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1; then
+        log "Network check successful using 8.8.8.8"
+        return 0
+    elif ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1; then
+        log "Network check successful using 1.1.1.1"
+        return 0
+    elif curl -s --connect-timeout 5 https://example.com >/dev/null; then
+        log "Network check successful using https://example.com"
+        return 0
+    fi
+    log "All network checks failed"
+    return 1
 }
 
 # Function to check Tailscale connection
 check_tailscale() {
-    # Check if tailscale is installed and running
+    log "Checking Tailscale status..."
+    
+    # Check if tailscale is installed
     if ! command -v tailscale &> /dev/null; then
+        log "Tailscale binary not found"
         return 1
     fi
     
+    # Check if tailscale daemon is running and start if needed
     if ! pgrep tailscaled &>/dev/null; then
-        systemctl start tailscaled || return 1
-        sleep 5
+        log "Tailscale daemon not running, attempting to start..."
+        systemctl start tailscaled
+        # Wait up to 30 seconds for service to start
+        log "Waiting for Tailscale service to initialize..."
+        timeout 30 bash -c 'until tailscale status; do sleep 1; done'
     fi
     
     # Check if tailscale is up
-    timeout 10 tailscale status | grep -q "^100\.*" || return 1
-    return 0
+    log "Checking Tailscale connection status..."
+    if timeout 10 tailscale status | grep -q "^100\.*"; then
+        log "Tailscale is connected and running"
+        return 0
+    else
+        log "Tailscale is not fully connected"
+        return 1
+    fi
 }
 
 # One-time system setup
@@ -105,19 +137,21 @@ perform_system_setup() {
         return 0
     fi
 
-    log "Performing one-time system setup..."
+    log "Starting one-time system setup..."
     
     # Set timezone
     log "Setting timezone to UTC"
     timedatectl set-timezone UTC
+    log "Timezone set successfully"
 
-    # Reset machine-id
-    log "Regenerating machine-id"
+    # Reset machine-id with proper error handling
+    log "Regenerating machine-id..."
     rm -f /etc/machine-id
     if ! systemd-machine-id-setup; then
         log "Failed to regenerate machine-id"
         exit 1
     fi
+    log "Machine-id regenerated successfully"
 
     # Generate hostname
     DATE_TIME=$(date +%y%m%d_%H%M)
@@ -127,16 +161,21 @@ perform_system_setup() {
     log "Setting hostname to: ${HOSTNAME}"
     hostnamectl set-hostname "${HOSTNAME}"
     sed -i "s/127\.0\.1\.1.*/127.0.1.1\t${HOSTNAME}/" /etc/hosts
+    log "Hostname set successfully"
 
-    # Install base packages
-    log "Installing base packages"
+    # Install base packages with retry logic
+    log "Starting package installation process..."
+    
+    # First try to update package lists
     apt_update_successful=false
     for i in {1..3}; do
+        log "Attempting apt-get update (attempt $i of 3)"
         if DEBIAN_FRONTEND=noninteractive apt-get update; then
             apt_update_successful=true
+            log "Package list update successful"
             break
         fi
-        log "Attempt $i to update package list failed, retrying..."
+        log "Package list update attempt $i failed"
         sleep 10
     done
 
@@ -145,33 +184,44 @@ perform_system_setup() {
         exit 1
     fi
 
-    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip vim htop git net-tools wget ncdu tmux btop; then
-        log "Failed to install required packages"
+    # Then install packages with retry logic
+    log "Installing required packages..."
+    for i in {1..3}; do
+        if DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip vim htop git net-tools wget ncdu tmux btop; then
+            log "Package installation successful"
+            break
+        fi
+        log "Package installation attempt $i failed"
+        sleep 10
+    done
+    if [[ $i -eq 3 ]]; then
+        log "Failed to install packages after 3 attempts"
         exit 1
     fi
 
     # Mark setup as complete
     touch "${SETUP_DONE_FILE}"
-    log "One-time setup completed"
+    log "One-time setup completed successfully"
 }
 
 # Main execution
 if [[ $EUID -ne 0 ]]; then
-    echo "This script must be run as root"
+    log "Script must be run as root"
     exit 1
 fi
 
 # Initial delay to allow other boot processes to complete
 log "Starting jobdone boot script..."
+log "Waiting 30 seconds for system initialization..."
 sleep 30
 
 # Perform system setup first
 perform_system_setup
 
-# Install Tailscale if not present
+# Install Tailscale if not present with proper error handling
 if ! command -v tailscale &> /dev/null; then
     if [ ! -f "${TAILSCALE_DONE_FILE}" ]; then
-        log "Installing Tailscale"
+        log "Installing Tailscale..."
         if curl -fsSL https://tailscale.com/install.sh | sh; then
             touch "${TAILSCALE_DONE_FILE}"
             log "Tailscale installation successful"
@@ -186,14 +236,18 @@ fi
 log "Starting Tailscale connection loop..."
 while true; do
     if ! check_network; then
-        log "Waiting for network connectivity..."
+        log "No network connectivity, waiting 30 seconds before retry..."
         sleep 30
         continue
     fi
 
     if ! check_tailscale; then
-        log "Attempting to connect to Tailscale"
-        tailscale up --hostname="$(hostname)" --authkey=TAILSCALE_AUTH_KEY_PLACEHOLDER || true
+        log "Attempting to connect to Tailscale..."
+        if tailscale up --hostname="$(hostname)" --authkey=TAILSCALE_AUTH_KEY_PLACEHOLDER; then
+            log "Tailscale connection attempt successful"
+        else
+            log "Tailscale connection attempt failed"
+        fi
         sleep 30
     else
         log "Tailscale successfully connected"
@@ -202,13 +256,15 @@ while true; do
 done
 
 # Remove cron job as we're done
+log "Removing boot script from cron..."
 rm -f /etc/cron.d/jobdone-boot
-log "Setup complete, removed cron job"
+log "Setup complete, cron job removed"
 
 exit 0
 EOF
 
 # Replace auth key placeholder
+echo "Replacing Tailscale auth key in boot script..."
 sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-boot.sh"
 
 # Set permissions and ownership
@@ -217,6 +273,7 @@ chmod +x "${SCRIPTS_DIR}/jobdone-boot.sh"
 chown root:root "${SCRIPTS_DIR}/jobdone-boot.sh"
 
 # Create log rotation configuration
+echo "Creating log rotation configuration..."
 cat > /etc/logrotate.d/jobdone << 'EOF'
 /var/log/jobdone.log {
     daily
@@ -231,7 +288,7 @@ EOF
 
 # Set up cron job to run only at boot
 echo "Setting up cron job..."
-echo "@reboot root ${SCRIPTS_DIR}/jobdone-boot.sh >/dev/null 2>&1" > /etc/cron.d/jobdone-boot
+echo "@reboot root ${SCRIPTS_DIR}/jobdone-boot.sh >> ${LOG_DIR}/jobdone.log 2>&1" > /etc/cron.d/jobdone-boot
 chmod 644 /etc/cron.d/jobdone-boot
 
 echo "Setup complete! Next steps:"
