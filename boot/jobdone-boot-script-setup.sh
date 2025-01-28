@@ -50,7 +50,7 @@ done
 #############################################
 
 echo "Creating main script..."
-cat > "${SCRIPTS_DIR}/jobdone.sh" << 'EOF'
+cat > "${SCRIPTS_DIR}/jobdone-boot.sh" << 'EOF'
 #!/bin/bash
 
 # Exit on error
@@ -125,8 +125,15 @@ perform_system_setup() {
 
     # Install base packages
     log "Installing base packages"
-    DEBIAN_FRONTEND=noninteractive apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip vim htop git net-tools wget ncdu tmux btop
+    if ! DEBIAN_FRONTEND=noninteractive apt-get update; then
+        log "Failed to update package list"
+        exit 1
+    fi
+
+    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip vim htop git net-tools wget ncdu tmux btop; then
+        log "Failed to install required packages"
+        exit 1
+    fi
 
     # Mark setup as complete
     touch "${SETUP_DONE_FILE}"
@@ -138,6 +145,10 @@ if [[ $EUID -ne 0 ]]; then
     echo "This script must be run as root"
     exit 1
 fi
+
+# Initial delay to allow other boot processes to complete
+log "Starting jobdone boot script..."
+sleep 30
 
 # Perform system setup first
 perform_system_setup
@@ -171,19 +182,19 @@ while true; do
 done
 
 # Remove cron job as we're done
-rm -f /etc/cron.d/jobdone
+rm -f /etc/cron.d/jobdone-boot
 log "Setup complete, removed cron job"
 
 exit 0
 EOF
 
 # Replace auth key placeholder
-sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone.sh"
+sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-boot.sh"
 
 # Set permissions and ownership
 echo "Setting permissions and ownership..."
-chmod +x "${SCRIPTS_DIR}/jobdone.sh"
-chown root:root "${SCRIPTS_DIR}/jobdone.sh"
+chmod +x "${SCRIPTS_DIR}/jobdone-boot.sh"
+chown root:root "${SCRIPTS_DIR}/jobdone-boot.sh"
 
 # Create log rotation configuration
 cat > /etc/logrotate.d/jobdone << 'EOF'
@@ -200,12 +211,12 @@ EOF
 
 # Set up cron job to run only at boot
 echo "Setting up cron job..."
-echo "@reboot root ${SCRIPTS_DIR}/jobdone.sh >/dev/null 2>&1" > /etc/cron.d/jobdone
-chmod 644 /etc/cron.d/jobdone
+echo "@reboot root ${SCRIPTS_DIR}/jobdone-boot.sh >/dev/null 2>&1" > /etc/cron.d/jobdone-boot
+chmod 644 /etc/cron.d/jobdone-boot
 
 echo "Setup complete! Next steps:"
-echo "1. Review the script in ${SCRIPTS_DIR}/jobdone.sh"
-echo "2. Check cron job in /etc/cron.d/jobdone"
+echo "1. Review the script in ${SCRIPTS_DIR}/jobdone-boot.sh"
+echo "2. Check cron job in /etc/cron.d/jobdone-boot"
 echo "3. Backup files are stored in ${BACKUP_DIR}"
 echo "4. State files will be kept in ${STATE_DIR}"
 echo "5. Logs will be written to ${LOG_DIR}/jobdone.log"
