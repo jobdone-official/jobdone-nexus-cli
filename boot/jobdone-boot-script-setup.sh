@@ -49,7 +49,10 @@ for file in /etc/hosts /etc/machine-id; do
     fi
 done
 
+#############################################
 # Create service files
+#############################################
+
 echo "Creating service files..."
 
 # Create initial setup service
@@ -102,7 +105,10 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
+#############################################
 # Create initial setup script
+#############################################
+
 echo "Creating initial setup script..."
 cat > "${SCRIPTS_DIR}/jobdone-initial-setup.sh" << 'EOF'
 #!/bin/bash
@@ -158,9 +164,6 @@ curl -fsSL https://tailscale.com/install.sh | sh || {
     exit 1
 }
 
-log "Removing any existing Tailscale state"
-rm -f /var/lib/tailscale/tailscaled.state
-
 # Function to check network connectivity
 check_network() {
     ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1
@@ -194,7 +197,10 @@ systemctl enable jobdone-tailscale-check || {
 log "Initial JobDone setup complete"
 EOF
 
+#############################################
 # Create Tailscale check script
+#############################################
+
 echo "Creating Tailscale check script..."
 cat > "${SCRIPTS_DIR}/jobdone-tailscale-check.sh" << 'EOF'
 #!/bin/bash
@@ -284,7 +290,10 @@ cat > /etc/logrotate.d/jobdone << 'EOF'
 }
 EOF
 
+#############################################
 # Enable services
+#############################################
+
 echo "Enabling services..."
 systemctl daemon-reload
 systemctl enable jobdone-initial-setup
