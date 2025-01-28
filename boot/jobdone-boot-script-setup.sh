@@ -64,10 +64,16 @@ StartLimitBurst=3
 
 [Service]
 Type=oneshot
+User=root
+Group=root
 ExecStart=/usr/local/bin/jobdone-initial-setup.sh
 RemainAfterExit=yes
 ExecStartPre=/bin/sh -c 'if [ -f /var/lib/jobdone/setup-completed ]; then exit 0; else exit 1; fi'
 ExecStartPost=/bin/sh -c 'mkdir -p /var/lib/jobdone && touch /var/lib/jobdone/setup-completed'
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
@@ -83,8 +89,14 @@ Requires=jobdone-initial-setup.service
 
 [Service]
 Type=simple
+User=root
+Group=root
 ExecStart=/usr/local/bin/jobdone-tailscale-check.sh
 Restart=on-failure
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
@@ -246,12 +258,18 @@ EOF
 sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
 sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
 
-# Set permissions
-echo "Setting permissions..."
+# Set permissions and ownership
+echo "Setting permissions and ownership..."
 chmod +x "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
 chmod +x "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
 chmod 644 "${SYSTEMD_DIR}/jobdone-initial-setup.service"
 chmod 644 "${SYSTEMD_DIR}/jobdone-tailscale-check.service"
+
+# Set ownership
+chown root:root "${SCRIPTS_DIR}/jobdone-initial-setup.sh"
+chown root:root "${SCRIPTS_DIR}/jobdone-tailscale-check.sh"
+chown root:root "${SYSTEMD_DIR}/jobdone-initial-setup.service"
+chown root:root "${SYSTEMD_DIR}/jobdone-tailscale-check.service"
 
 # Create log rotation configuration
 cat > /etc/logrotate.d/jobdone << 'EOF'
