@@ -23,6 +23,7 @@ EOF
 hostname=""
 tailscale_authkey=""
 skip_reset_machine_id=false
+skip_tailscale=false
 
 # optional params
 trmm_mesh_agent=""
@@ -43,6 +44,7 @@ while [[ "$#" -gt 0 ]]; do
         --hostname) hostname="$2"; shift ;;
         --tailscale-authkey) tailscale_authkey="$2"; shift ;;
         --skip-reset-machine-id) skip_reset_machine_id=true ;;
+        --skip-tailscale) skip_tailscale=true ;;
 
         # optional params
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
@@ -67,8 +69,8 @@ done
 # - gateway
 # - netmask
 # - dns
-if [ -z "$hostname" ] || [ -z "$tailscale_authkey" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id]"
+if [ -z "$hostname" ] || ([ -z "$tailscale_authkey" ] && [ "$skip_tailscale" = false ]); then
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale]"
     exit 1
 fi
 
@@ -137,41 +139,45 @@ sudo apt install -y curl unzip vim htop git net-tools wget ncdu tmux btop || { l
 log INFO "Basic packages installed successfully."
 
 # install Tailscale
-if ! tailscale version &> /dev/null; then
-    log INFO "Installing Tailscale..."
-    curl -fsSL https://tailscale.com/install.sh | sh || { log ERROR "Failed to install Tailscale."; exit 1; }
-    log INFO "Tailscale installed successfully."
+if [ "$skip_tailscale" = true ]; then
+    log INFO "Skipping Tailscale installation and setup as requested."
 else
-    log WARN "Tailscale is already installed."
-fi
+    if ! tailscale version &> /dev/null; then
+        log INFO "Installing Tailscale..."
+        curl -fsSL https://tailscale.com/install.sh | sh || { log ERROR "Failed to install Tailscale."; exit 1; }
+        log INFO "Tailscale installed successfully."
+    else
+        log WARN "Tailscale is already installed."
+    fi
 
-# join Tailscale network
-if tailscale status | grep -q "Logged out"; then
-    log INFO "Joining Tailscale network..."
-    sudo tailscale up --authkey "$tailscale_authkey" || { log ERROR "Failed to join Tailscale network."; exit 1; }
-    
-    # wait for Tailscale to connect
-    timeout=60
-    start_time=$(date +%s)
-    while true; do
-        current_time=$(date +%s)
-        elapsed_time=$((current_time - start_time))
+    # join Tailscale network
+    if tailscale status | grep -q "Logged out"; then
+        log INFO "Joining Tailscale network..."
+        sudo tailscale up --authkey "$tailscale_authkey" || { log ERROR "Failed to join Tailscale network."; exit 1; }
         
-        if [ $elapsed_time -ge $timeout ]; then
-            log ERROR "Timeout reached. Tailscale failed to connect in time."
-            exit 1
-        fi
-        
-        if ! tailscale status | grep -q "Logged out"; then
-            log INFO "Tailscale connected successfully!"
-            break
-        else
-            log INFO "Waiting for Tailscale to connect... $(($timeout - $elapsed_time)) seconds remaining"
-            sleep 5
-        fi
-    done
-else
-    log WARN "Tailscale is already connected."
+        # wait for Tailscale to connect
+        timeout=60
+        start_time=$(date +%s)
+        while true; do
+            current_time=$(date +%s)
+            elapsed_time=$((current_time - start_time))
+            
+            if [ $elapsed_time -ge $timeout ]; then
+                log ERROR "Timeout reached. Tailscale failed to connect in time."
+                exit 1
+            fi
+            
+            if ! tailscale status | grep -q "Logged out"; then
+                log INFO "Tailscale connected successfully!"
+                break
+            else
+                log INFO "Waiting for Tailscale to connect... $(($timeout - $elapsed_time)) seconds remaining"
+                sleep 5
+            fi
+        done
+    else
+        log WARN "Tailscale is already connected."
+    fi
 fi
 
 # get Tailscale IP
@@ -322,54 +328,4 @@ if [[ "$REBOOT_CHOICE" == "yes" ]]; then
     reboot
 else
     log INFO "Reboot skipped."
-fi
-# First, let's add the skip-machine-id parameter to the usage message
-if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-machine-id]"
-    exit 1
-fi
-shift # Remove the 'install' argument, leaving only the named parameters
-
-# Add skip_machine_id variable to the initialization section
-skip_machine_id=false
-
-# Add the skip-machine-id flag to the parameter parsing section
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --hostname) hostname="$2"; shift ;;
-        --tailscale-authkey) tailscale_authkey="$2"; shift ;;
-        --skip-machine-id) skip_machine_id=true ;;  # New parameter
-        
-        # Rest of the parameters remain the same
-        --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
-        --trmm-api-url) trmm_api_url="$2"; shift ;;
-        --trmm-client-id) trmm_client_id="$2"; shift ;;
-        --trmm-site-id) trmm_site_id="$2"; shift ;;
-        --trmm-auth-key) trmm_auth_key="$2"; shift ;;
-        --static-ip) static_ip="$2"; shift ;;
-        --gateway) gateway="$2"; shift ;;
-        --netmask) netmask="$2"; shift ;;
-        --dns) dns="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
-
-# Modify the hostname section to include the machine-id logic
-if [ -n "$hostname" ]; then
-    log INFO "Setting hostname to $hostname..."
-    sudo hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
-    # change /etc/hosts
-    sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
-    log INFO "Hostname set to $hostname."
-
-    # Machine ID regeneration now depends on the skip_machine_id flag
-    if [ "$skip_machine_id" = true ]; then
-        log INFO "Skipping machine ID regeneration as requested."
-    else
-        log INFO "Regenerating machine ID..."
-        sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
-        sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
-        log INFO "Machine ID regenerated successfully."
-    fi
 fi
