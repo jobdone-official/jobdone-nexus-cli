@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -22,6 +22,7 @@ EOF
 # Initialize variables
 hostname=""
 tailscale_authkey=""
+skip_reset_machine_id=false
 
 # optional params
 trmm_mesh_agent=""
@@ -41,6 +42,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hostname) hostname="$2"; shift ;;
         --tailscale-authkey) tailscale_authkey="$2"; shift ;;
+        --skip-reset-machine-id) skip_reset_machine_id=true ;;
 
         # optional params
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
@@ -66,7 +68,7 @@ done
 # - netmask
 # - dns
 if [ -z "$hostname" ] || [ -z "$tailscale_authkey" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>]"
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id]"
     exit 1
 fi
 
@@ -114,12 +116,16 @@ if [ -n "$hostname" ]; then
     # change /etc/hosts
     sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
     log INFO "Hostname set to $hostname."
+fi
 
-    # regenerate machine ID
-    log INFO "Regenerating machine ID..."
+# reset machine id if enabled
+if [ "$skip_reset_machine_id" = true ]; then
+    log INFO "Skipping machine ID reset as requested."
+else
+    log INFO "Resetting machine ID..."
     sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
     sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
-    log INFO "Machine ID regenerated successfully."
+    log INFO "Machine ID reset successfully."
 fi
 
 # install basic packages
@@ -316,4 +322,54 @@ if [[ "$REBOOT_CHOICE" == "yes" ]]; then
     reboot
 else
     log INFO "Reboot skipped."
+fi
+# First, let's add the skip-machine-id parameter to the usage message
+if [ "$1" != "install" ]; then
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-machine-id]"
+    exit 1
+fi
+shift # Remove the 'install' argument, leaving only the named parameters
+
+# Add skip_machine_id variable to the initialization section
+skip_machine_id=false
+
+# Add the skip-machine-id flag to the parameter parsing section
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --hostname) hostname="$2"; shift ;;
+        --tailscale-authkey) tailscale_authkey="$2"; shift ;;
+        --skip-machine-id) skip_machine_id=true ;;  # New parameter
+        
+        # Rest of the parameters remain the same
+        --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
+        --trmm-api-url) trmm_api_url="$2"; shift ;;
+        --trmm-client-id) trmm_client_id="$2"; shift ;;
+        --trmm-site-id) trmm_site_id="$2"; shift ;;
+        --trmm-auth-key) trmm_auth_key="$2"; shift ;;
+        --static-ip) static_ip="$2"; shift ;;
+        --gateway) gateway="$2"; shift ;;
+        --netmask) netmask="$2"; shift ;;
+        --dns) dns="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+# Modify the hostname section to include the machine-id logic
+if [ -n "$hostname" ]; then
+    log INFO "Setting hostname to $hostname..."
+    sudo hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
+    # change /etc/hosts
+    sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
+    log INFO "Hostname set to $hostname."
+
+    # Machine ID regeneration now depends on the skip_machine_id flag
+    if [ "$skip_machine_id" = true ]; then
+        log INFO "Skipping machine ID regeneration as requested."
+    else
+        log INFO "Regenerating machine ID..."
+        sudo rm -f /etc/machine-id || { log ERROR "Failed to remove machine ID."; exit 1; }
+        sudo systemd-machine-id-setup || { log ERROR "Failed to regenerate machine ID."; exit 1; }
+        log INFO "Machine ID regenerated successfully."
+    fi
 fi
