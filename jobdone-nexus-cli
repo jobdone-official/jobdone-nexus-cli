@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
+    echo "Usage: $0 install [--hostname <hostname>] --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -91,9 +91,9 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Check if variables are set
-if [ -z "$hostname" ] || ([ -z "$tailscale_authkey" ] && [ "$skip_tailscale" = false ]); then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
+# Check if required variables are set based on flags
+if ([ -z "$hostname" ] && [ "$skip_change_hostname" = false ]) || ([ -z "$tailscale_authkey" ] && [ "$skip_tailscale" = false ]); then
+    echo "Usage: $0 install [--hostname <hostname>] --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
     exit 1
 fi
 
