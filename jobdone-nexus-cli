@@ -335,13 +335,24 @@ else
 fi
 
 # show /etc/rancher/k3s/k3s.yaml with instructions
-k3s_argocd_file_name="${tailscale_ip}-${hostname}.yaml"
+target_hostname=""
+if [ "$skip_change_hostname" = true ]; then
+    target_hostname=$(hostname)
+else
+    target_hostname="$hostname"
+fi
+
+# Create the k3s ArgoCD filename
+k3s_argocd_file_name="${tailscale_ip}-${target_hostname}"
+
+sleep 1
 echo -e "\n\n"
 cat /etc/rancher/k3s/k3s.yaml
 echo -e "\n\n"
-log INFO "Copy the content of the k3s.yaml file to the ArgoCD Manager node and name it: $k3s_argocd_file_name"
+log INFO "Copy the content of the k3s.yaml file to the ArgoCD Manager node and name it: ${k3s_argocd_file_name}.yaml"
+log INFO "After importing the k3s.yaml to ArgoCD, you can add the cluster using:"
+log INFO "argocd cluster add ${k3s_argocd_file_name}"
 echo -e "\n\n"
-
 log INFO "JobDone Nexus Installation complete!"
 
 # ask for reboot
