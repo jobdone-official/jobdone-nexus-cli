@@ -2,7 +2,7 @@
 
 # Check if the first argument is "install"
 if [ "$1" != "install" ]; then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale]"
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
     exit 1
 fi
 shift # Remove the 'install' argument, leaving only the named parameters
@@ -24,6 +24,7 @@ hostname=""
 tailscale_authkey=""
 skip_reset_machine_id=false
 skip_tailscale=false
+skip_change_hostname=false
 
 # optional params
 trmm_mesh_agent=""
@@ -38,6 +39,32 @@ gateway=""
 netmask=""
 dns=""
 
+# Setup logging
+DATE_TIME=$(date +%y%m%d_%H%M)
+log_dir="/var/log/jobdone"
+log_file="$log_dir/jobdone-nexus-cli-${DATE_TIME}.log"
+
+# Create log directory if it doesn't exist
+if [ ! -d "$log_dir" ]; then
+    echo "Creating log directory $log_dir..."
+    sudo mkdir -p "$log_dir" || { echo "Failed to create log directory"; exit 1; }
+else
+    echo "Log directory $log_dir already exists."
+fi
+
+# Set permissions regardless of whether directory existed or was created
+sudo chown -R $SUDO_USER:$SUDO_USER "$log_dir" || { echo "Failed to set log directory ownership"; exit 1; }
+sudo chmod 755 "$log_dir" || { echo "Failed to set log directory permissions"; exit 1; }
+
+# Create log file
+echo "Creating log file $log_file..."
+touch "$log_file" || { echo "Failed to create log file"; exit 1; }
+sudo chown $SUDO_USER:$SUDO_USER "$log_file" || { echo "Failed to set log file ownership"; exit 1; }
+sudo chmod 644 "$log_file" || { echo "Failed to set log file permissions"; exit 1; }
+
+# Add header to log file
+echo "=== JobDone Nexus Installation Log - Started at $(date) ===" >> "$log_file"
+
 # Parse named arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -45,6 +72,7 @@ while [[ "$#" -gt 0 ]]; do
         --tailscale-authkey) tailscale_authkey="$2"; shift ;;
         --skip-reset-machine-id) skip_reset_machine_id=true ;;
         --skip-tailscale) skip_tailscale=true ;;
+        --skip-change-hostname) skip_change_hostname=true ;;
 
         # optional params
         --trmm-mesh-agent) trmm_mesh_agent="$2"; shift ;;
@@ -64,18 +92,10 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Check if variables are set
-# addon params:
-# - static_ip
-# - gateway
-# - netmask
-# - dns
 if [ -z "$hostname" ] || ([ -z "$tailscale_authkey" ] && [ "$skip_tailscale" = false ]); then
-    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale]"
+    echo "Usage: $0 install --hostname <hostname> --tailscale-authkey <tailscale_authkey> --trmm-mesh-agent <trmm_mesh_agent> --trmm-api-url <trmm_api_url> --trmm-client-id <trmm_client_id> --trmm-site-id <trmm_site_id> --trmm-auth-key <trmm_auth_key> [--static-ip <static_ip>] [--gateway <gateway>] [--netmask <netmask>] [--dns <dns>] [--skip-reset-machine-id] [--skip-tailscale] [--skip-change-hostname]"
     exit 1
 fi
-
-# Define log file with timestamp
-log_file="jobdone_nexus_installation_$(date +%Y-%m-%dT%H:%M:%S).log"
 
 # Function to log messages with levels
 log() {
@@ -92,11 +112,12 @@ log() {
 }
 
 # log params
-echo "hostname: $hostname"
-echo "static_ip: $static_ip"
-echo "gateway: $gateway"
-echo "netmask: $netmask"
-echo "dns: $dns"
+log INFO "Installation parameters:"
+log INFO "hostname: $hostname"
+log INFO "static_ip: $static_ip"
+log INFO "gateway: $gateway"
+log INFO "netmask: $netmask"
+log INFO "dns: $dns"
 
 # Determine the invoker's home directory
 if [ ! -z "$SUDO_USER" ]; then
@@ -111,13 +132,15 @@ log INFO "Setting timezone to UTC..."
 sudo timedatectl set-timezone UTC || { log ERROR "Failed to set timezone to UTC."; exit 1; }
 log INFO "Timezone set to UTC."
 
-# set the hostname if it's provided
-if [ -n "$hostname" ]; then
+# set the hostname if it's provided and not skipped
+if [ -n "$hostname" ] && [ "$skip_change_hostname" = false ]; then
     log INFO "Setting hostname to $hostname..."
     sudo hostnamectl set-hostname "$hostname" || { log ERROR "Failed to set hostname."; exit 1; }
     # change /etc/hosts
     sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$hostname/" /etc/hosts || { log ERROR "Failed to update /etc/hosts."; exit 1; }
     log INFO "Hostname set to $hostname."
+elif [ "$skip_change_hostname" = true ]; then
+    log INFO "Skipping hostname change as requested."
 fi
 
 # reset machine id if enabled
