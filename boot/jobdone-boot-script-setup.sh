@@ -100,7 +100,7 @@ mv /tmp/frp_${FRP_VERSION}_linux_amd64/frpc "${FRP_DIR}/frpc"
 chmod +x "${FRP_DIR}/frpc"
 rm -rf /tmp/frp.tar.gz /tmp/frp_checksums.txt /tmp/frp_${FRP_VERSION}_linux_amd64
 
-# Create frpc configuration
+# Create frpc configuration (placeholder for initial setup)
 cat > "${FRP_DIR}/frpc.toml" << EOF
 serverAddr = "${FRP_SERVER_ADDR}"
 serverPort = 7000
@@ -108,7 +108,7 @@ auth.method = "token"
 auth.token = "${FRP_AUTH_TOKEN}"
 
 [[proxies]]
-name = "ssh-$(hostname)"
+name = "ssh-initial"
 type = "stcp"
 secretKey = "${FRP_AUTH_TOKEN}"
 localIP = "127.0.0.1"
@@ -419,11 +419,25 @@ send_discord_notification() {
          "${DISCORD_WEBHOOK_URL}"
 }
 
+# Update FRP config with current hostname
+update_frp_config() {
+    log_frp "Updating FRP config with current hostname..."
+    local current_hostname=$(hostname)
+    
+    # Update the name in the config file
+    sed -i "s/name = \"ssh-[^\"]*\"/name = \"ssh-${current_hostname}\"/" "${FRP_DIR}/frpc.toml"
+    
+    log_frp "FRP config updated with hostname: ${current_hostname}"
+}
+
 # Start frp
 start_frp() {
     # Kill any existing frp process
     pkill -f "${FRP_DIR}/frpc" || true
     sleep 2
+    
+    # Update config before starting
+    update_frp_config
     
     log_frp "Starting frp client..."
     nohup "${FRP_DIR}/frpc" -c "${FRP_DIR}/frpc.toml" >> "${FRP_LOG}" 2>&1 &
@@ -440,8 +454,8 @@ start_frp() {
 }
 
 # Main execution
-log_frp "Waiting 180 seconds before starting FRP..."
-sleep 180
+log_frp "Waiting 60 seconds before starting FRP..."
+sleep 60
 
 # Start FRP
 start_frp
@@ -533,4 +547,4 @@ echo "7. Shutdown the VM and use it as a template."
 echo "Note: All scripts will run at each boot:"
 echo "      - Script 0: Discord boot notification"
 echo "      - Script 1: Tailscale setup and connection"
-echo "      - Script 2: FRP start (after 3 minute delay)"
+echo "      - Script 2: FRP start (after 1 minute delay)"
