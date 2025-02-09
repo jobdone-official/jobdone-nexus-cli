@@ -116,6 +116,79 @@ localPort = 22
 EOF
 
 #############################################
+# Create Discord boot script (0)
+#############################################
+
+echo "Creating Discord boot notification script..."
+cat > "${SCRIPTS_DIR}/0-jobdone-discord.sh" << 'EOF'
+#!/bin/bash
+
+# Define variables
+readonly SETUP_DIR="/var/lib/jobdone"
+readonly LOG_DIR="/var/log"
+readonly STATE_DIR="${SETUP_DIR}/state"
+readonly DISCORD_LOG="${LOG_DIR}/jobdone-discord.log"
+readonly DISCORD_WEBHOOK_URL="DISCORD_WEBHOOK_URL_PLACEHOLDER"
+
+# Logging function
+log_discord() {
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $1" >> "${DISCORD_LOG}"
+}
+
+# Error handling
+trap 'log_discord "Error: Script failed on line $LINENO"; exit 1' ERR
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+    log_discord "Script must be run as root"
+    exit 1
+fi
+
+# Create necessary directories
+mkdir -p "${LOG_DIR}"
+
+# Discord notification function
+send_discord_notification() {
+    local message="$1"
+    local hostname=$(hostname)
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local uptime=$(uptime -p)
+    local ip_addr=$(hostname -I | awk '{print $1}')
+    
+    log_discord "Sending boot notification to Discord..."
+    
+    curl -H "Content-Type: application/json" \
+         -d "{\"content\":null,\"embeds\":[{\"title\":\"[$(hostname)] VM Boot Alert\",\"description\":\"$message\",\"color\":3447003,\"fields\":[{\"name\":\"Hostname\",\"value\":\"$hostname\",\"inline\":true},{\"name\":\"Timestamp\",\"value\":\"$timestamp\",\"inline\":true},{\"name\":\"Uptime\",\"value\":\"$uptime\",\"inline\":true},{\"name\":\"IP Address\",\"value\":\"$ip_addr\",\"inline\":true}]}]}" \
+         "${DISCORD_WEBHOOK_URL}" \
+         2>> "${DISCORD_LOG}"
+         
+    if [ $? -eq 0 ]; then
+        log_discord "Discord notification sent successfully"
+    else
+        log_discord "Failed to send Discord notification"
+    fi
+}
+
+# Main execution
+log_discord "Starting boot notification script..."
+
+# Wait for network to be available
+log_discord "Waiting for network connectivity..."
+for i in {1..12}; do  # Try for 1 minute (5 seconds * 12)
+    if ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1 || ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1; then
+        log_discord "Network connectivity established"
+        send_discord_notification "🟢 VM has booted successfully"
+        exit 0
+    fi
+    sleep 5
+done
+
+log_discord "Failed to establish network connectivity"
+exit 1
+EOF
+
+#############################################
 # Create Tailscale boot script (1)
 #############################################
 
@@ -379,19 +452,32 @@ EOF
 # Replace placeholders in both scripts
 echo "Replacing placeholders in boot scripts..."
 sed -i "s/TAILSCALE_AUTH_KEY_PLACEHOLDER/$TAILSCALE_AUTH_KEY/g" "${SCRIPTS_DIR}/1-jobdone-tailscale.sh"
+sed -i "s|DISCORD_WEBHOOK_URL_PLACEHOLDER|$DISCORD_WEBHOOK_URL|g" "${SCRIPTS_DIR}/0-jobdone-discord.sh"
 sed -i "s|DISCORD_WEBHOOK_URL_PLACEHOLDER|$DISCORD_WEBHOOK_URL|g" "${SCRIPTS_DIR}/1-jobdone-tailscale.sh"
 sed -i "s|DISCORD_WEBHOOK_URL_PLACEHOLDER|$DISCORD_WEBHOOK_URL|g" "${SCRIPTS_DIR}/2-jobdone-frp.sh"
 
 # Set permissions and ownership
 echo "Setting permissions and ownership..."
+chmod +x "${SCRIPTS_DIR}/0-jobdone-discord.sh"
 chmod +x "${SCRIPTS_DIR}/1-jobdone-tailscale.sh"
 chmod +x "${SCRIPTS_DIR}/2-jobdone-frp.sh"
+chown root:root "${SCRIPTS_DIR}/0-jobdone-discord.sh"
 chown root:root "${SCRIPTS_DIR}/1-jobdone-tailscale.sh"
 chown root:root "${SCRIPTS_DIR}/2-jobdone-frp.sh"
 
 # Create log rotation configuration
 echo "Creating log rotation configuration..."
 cat > /etc/logrotate.d/jobdone << 'EOF'
+/var/log/jobdone-discord.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+}
+
 /var/log/jobdone-tailscale.log {
     daily
     rotate 7
@@ -415,8 +501,10 @@ EOF
 
 # Set up cron jobs to run at boot
 echo "Setting up cron jobs..."
+echo "@reboot root ${SCRIPTS_DIR}/0-jobdone-discord.sh" > /etc/cron.d/jobdone-discord
 echo "@reboot root ${SCRIPTS_DIR}/1-jobdone-tailscale.sh" > /etc/cron.d/jobdone-tailscale
 echo "@reboot root ${SCRIPTS_DIR}/2-jobdone-frp.sh" > /etc/cron.d/jobdone-frp
+chmod 644 /etc/cron.d/jobdone-discord
 chmod 644 /etc/cron.d/jobdone-tailscale
 chmod 644 /etc/cron.d/jobdone-frp
 
@@ -427,19 +515,22 @@ curl -H "Content-Type: application/json" \
 
 echo "Setup complete! Next steps:"
 echo "1. Review the scripts:"
+echo "   - ${SCRIPTS_DIR}/0-jobdone-discord.sh"
 echo "   - ${SCRIPTS_DIR}/1-jobdone-tailscale.sh"
 echo "   - ${SCRIPTS_DIR}/2-jobdone-frp.sh"
 echo "2. Check cron jobs:"
+echo "   - /etc/cron.d/jobdone-discord"
 echo "   - /etc/cron.d/jobdone-tailscale"
 echo "   - /etc/cron.d/jobdone-frp"
 echo "3. Backup files are stored in ${BACKUP_DIR}"
 echo "4. State files will be kept in ${STATE_DIR}"
 echo "5. Logs will be written to:"
+echo "   - ${DISCORD_LOG}"
 echo "   - ${TAILSCALE_LOG}"
 echo "   - ${FRP_LOG}"
 echo "6. Discord notifications have been configured"
 echo "7. Shutdown the VM and use it as a template."
-echo "Note: Both scripts will run at each boot:"
+echo "Note: All scripts will run at each boot:"
+echo "      - Script 0: Discord boot notification"
 echo "      - Script 1: Tailscale setup and connection"
 echo "      - Script 2: FRP start (after 3 minute delay)"
-echo "      - Both services will send status updates to Discord"
