@@ -63,6 +63,15 @@ while true; do
 done
 
 while true; do
+    read -p "Enter your FRP secret key: " FRP_SECRET_KEY
+    if [[ -z "${FRP_SECRET_KEY}" ]]; then
+        echo "Error: FRP secret key cannot be empty"
+        continue
+    fi
+    break
+done
+
+while true; do
     read -p "Enter your Discord webhook URL: " DISCORD_WEBHOOK_URL
     if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
         echo "Error: Discord webhook URL cannot be empty"
@@ -110,7 +119,7 @@ auth.token = "${FRP_AUTH_TOKEN}"
 [[proxies]]
 name = "ssh-initial"
 type = "stcp"
-secretKey = "${FRP_AUTH_TOKEN}"
+secretKey = "${FRP_SECRET_KEY}"
 localIP = "127.0.0.1"
 localPort = 22
 EOF
