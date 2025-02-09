@@ -73,13 +73,32 @@ done
 
 echo "Configuration received"
 
-# Download and set up frp
-echo "Downloading and setting up frp..."
+# Download and verify frp
+echo "Downloading frp and checksums..."
 wget https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/frp_${FRP_VERSION}_linux_amd64.tar.gz -O /tmp/frp.tar.gz
+wget https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/frp_sha256_checksums.txt -O /tmp/frp_checksums.txt
+
+# Verify checksum
+echo "Verifying frp checksum..."
+EXPECTED_CHECKSUM=$(grep "frp_${FRP_VERSION}_linux_amd64.tar.gz" /tmp/frp_checksums.txt | cut -d' ' -f1)
+ACTUAL_CHECKSUM=$(sha256sum /tmp/frp.tar.gz | cut -d' ' -f1)
+
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+    echo "Checksum verification failed!"
+    echo "Expected: $EXPECTED_CHECKSUM"
+    echo "Got: $ACTUAL_CHECKSUM"
+    rm -f /tmp/frp.tar.gz /tmp/frp_checksums.txt
+    exit 1
+fi
+
+echo "Checksum verification successful"
+
+# Extract and set up frp
+echo "Extracting and setting up frp..."
 tar -xf /tmp/frp.tar.gz -C /tmp
 mv /tmp/frp_${FRP_VERSION}_linux_amd64/frpc "${FRP_DIR}/frpc"
 chmod +x "${FRP_DIR}/frpc"
-rm -rf /tmp/frp.tar.gz /tmp/frp_${FRP_VERSION}_linux_amd64
+rm -rf /tmp/frp.tar.gz /tmp/frp_checksums.txt /tmp/frp_${FRP_VERSION}_linux_amd64
 
 # Create frpc configuration
 cat > "${FRP_DIR}/frpc.toml" << EOF
